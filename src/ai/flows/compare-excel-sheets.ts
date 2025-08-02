@@ -80,7 +80,6 @@ const prompt = ai.definePrompt({
   name: 'compareExcelSheetsPrompt',
   input: {schema: CompareExcelSheetsInputSchema},
   output: {schema: CompareExcelSheetsOutputSchema},
-  model: 'googleai/gemini-2.0-flash',
   prompt: `You are an expert data analyst. Your task is to compare two CSV datasets based on user-provided key columns.
 
 **Instructions:**
