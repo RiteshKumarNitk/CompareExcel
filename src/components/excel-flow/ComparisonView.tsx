@@ -30,6 +30,8 @@ const utf8_to_b64 = (str: string) => {
 export default function ComparisonView({ files }: ComparisonViewProps) {
   const [sheet1, setSheet1] = useState<SheetIdentifier | null>(null);
   const [sheet2, setSheet2] = useState<SheetIdentifier | null>(null);
+  const [keyColumn1, setKeyColumn1] = useState<string | null>(null);
+  const [keyColumn2, setKeyColumn2] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<CompareExcelSheetsOutput | null>(null);
   const { toast } = useToast();
@@ -42,13 +44,27 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     }))
   ), [files]);
 
+  const sheet1Columns = useMemo(() => {
+    if (!sheet1) return [];
+    const data = files[sheet1.fileIndex]?.sheets[sheet1.sheetIndex]?.data;
+    return data && data.length > 0 ? Object.keys(data[0]) : [];
+  }, [files, sheet1]);
+
+  const sheet2Columns = useMemo(() => {
+    if (!sheet2) return [];
+    const data = files[sheet2.fileIndex]?.sheets[sheet2.sheetIndex]?.data;
+    return data && data.length > 0 ? Object.keys(data[0]) : [];
+  }, [files, sheet2]);
+
   useEffect(() => {
     setResult(null);
+    setKeyColumn1(null);
+    setKeyColumn2(null);
   }, [sheet1, sheet2]);
 
   const handleCompare = async () => {
-    if (!sheet1 || !sheet2) {
-      toast({ variant: "destructive", title: "Please select two sheets to compare." });
+    if (!sheet1 || !sheet2 || !keyColumn1 || !keyColumn2) {
+      toast({ variant: "destructive", title: "Please select two sheets and a key column for each." });
       return;
     }
     if (sheet1.name === sheet2.name) {
@@ -76,6 +92,8 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
       const comparisonResult = await compareExcelSheets({
         excelSheet1DataUri: uri1,
         excelSheet2DataUri: uri2,
+        keyColumn1,
+        keyColumn2,
       });
 
       setResult(comparisonResult);
@@ -163,10 +181,10 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
         <CardHeader>
           <CardTitle>Compare Excel Sheets</CardTitle>
           <CardDescription>
-            Select two sheets to compare. The AI will analyze the differences and suggest a key column for matching.
+            Select two sheets and the key column for each to use for matching rows.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Select onValueChange={(value) => setSheet1(JSON.parse(value))}>
               <SelectTrigger>
@@ -195,9 +213,37 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
               </SelectContent>
             </Select>
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Select onValueChange={setKeyColumn1} disabled={!sheet1}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Key Column for Sheet 1" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Columns in {sheet1?.name}</SelectLabel>
+                  {sheet1Columns.map((col) => (
+                    <SelectItem key={`${col}-1`} value={col}>{col}</SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select onValueChange={setKeyColumn2} disabled={!sheet2}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Key Column for Sheet 2" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Columns in {sheet2?.name}</SelectLabel>
+                  {sheet2Columns.map((col) => (
+                    <SelectItem key={`${col}-2`} value={col}>{col}</SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
         <CardFooter>
-             <Button onClick={handleCompare} disabled={isLoading || !sheet1 || !sheet2} className="w-full md:w-auto">
+             <Button onClick={handleCompare} disabled={isLoading || !sheet1 || !sheet2 || !keyColumn1 || !keyColumn2} className="w-full md:w-auto">
                 {isLoading ? (
                 <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

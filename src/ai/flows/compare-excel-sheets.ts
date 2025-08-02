@@ -12,7 +12,6 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const CompareExcelSheetsInputSchema = z.object({
-  // Changed to expect CSV data as a text-based data URI
   excelSheet1DataUri: z
     .string()
     .describe(
@@ -23,6 +22,8 @@ const CompareExcelSheetsInputSchema = z.object({
     .describe(
         "The second Excel sheet as a text/csv data URI. Expected format: 'data:text/csv;base64,<encoded_data>'."
     ),
+  keyColumn1: z.string().describe('The key column name for the first sheet.'),
+  keyColumn2: z.string().describe('The key column name for the second sheet.'),
 });
 export type CompareExcelSheetsInput = z.infer<typeof CompareExcelSheetsInputSchema>;
 
@@ -33,6 +34,7 @@ const ComparisonRowSchema = z.object({
 });
 
 const CompareExcelSheetsOutputSchema = z.object({
+  // The keyColumn is now derived from the input, but we'll keep it in the output for consistency on the frontend.
   keyColumn: z.string().describe('The name of the column used as the key for comparison.'),
   comparison: z.array(ComparisonRowSchema).describe("An array of rows representing the comparison result. Each row has a status and the combined data from the sheets."),
 });
@@ -48,6 +50,7 @@ export type CompareExcelSheetsOutput = {
 
 
 export async function compareExcelSheets(input: CompareExcelSheetsInput): Promise<CompareExcelSheetsOutput> {
+  // We pass the user-selected key directly to the flow and get it back.
   const result = await compareExcelSheetsFlow(input);
 
   // Parse the `data` string in each comparison item.
@@ -78,17 +81,19 @@ const prompt = ai.definePrompt({
   input: {schema: CompareExcelSheetsInputSchema},
   output: {schema: CompareExcelSheetsOutputSchema},
   model: 'googleai/gemini-2.0-flash',
-  prompt: `You are an expert data analyst. Your task is to compare two CSV datasets and return a structured JSON result.
+  prompt: `You are an expert data analyst. Your task is to compare two CSV datasets based on user-provided key columns.
 
 **Instructions:**
 
-1.  **Identify Key Column:** Analyze the headers and data of both sheets to determine the best column for matching rows. This is likely an ID, email, or phone number column.
+1.  **Use Provided Key Columns:**
+    *   For Sheet 1, the key column is: '{{{keyColumn1}}}'
+    *   For Sheet 2, the key column is: '{{{keyColumn2}}}'
 2.  **Compare and Merge Data:**
-    *   "Matched": Rows with the same key in both sheets. Merge their data.
+    *   "Matched": Rows where the value in '{{{keyColumn1}}}' from Sheet 1 matches the value in '{{{keyColumn2}}}' from Sheet 2. Merge their data.
     *   "In Sheet 1 Only": Rows from Sheet 1 with no matching key in Sheet 2.
     *   "In Sheet 2 Only": Rows from Sheet 2 with no matching key in Sheet 1.
 3.  **Format Output:** The final output MUST be a single JSON object. This object must have two top-level properties:
-    *   'keyColumn': A string containing the name of the column you chose for matching.
+    *   'keyColumn': A string containing the name of the primary key column you used from Sheet 1, which is '{{{keyColumn1}}}'.
     *   'comparison': An array of objects. Each object in this array must contain:
         *   'comparisonStatus': One of "Matched", "In Sheet 1 Only", or "In Sheet 2 Only".
         *   'data': A valid, escaped JSON string representing the row's data.
@@ -113,6 +118,10 @@ const compareExcelSheetsFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
+    // If the model for some reason still fails to provide a keyColumn, we will inject it ourselves from the input to prevent a crash.
+    if (output && !output.keyColumn) {
+      output.keyColumn = input.keyColumn1;
+    }
     return output!;
   }
 );
