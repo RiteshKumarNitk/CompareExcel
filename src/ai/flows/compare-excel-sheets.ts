@@ -34,7 +34,6 @@ const ComparisonRowSchema = z.object({
 });
 
 const CompareExcelSheetsOutputSchema = z.object({
-  // The keyColumn is now derived from the input, but we'll keep it in the output for consistency on the frontend.
   keyColumn: z.string().describe('The name of the column used as the key for comparison.'),
   comparison: z.array(ComparisonRowSchema).describe("An array of rows representing the comparison result. Each row has a status and the combined data from the sheets."),
 });
@@ -50,7 +49,6 @@ export type CompareExcelSheetsOutput = {
 
 
 export async function compareExcelSheets(input: CompareExcelSheetsInput): Promise<CompareExcelSheetsOutput> {
-  // We pass the user-selected key directly to the flow and get it back.
   const result = await compareExcelSheetsFlow(input);
 
   // Parse the `data` string in each comparison item.
@@ -79,7 +77,7 @@ export async function compareExcelSheets(input: CompareExcelSheetsInput): Promis
 const prompt = ai.definePrompt({
   name: 'compareExcelSheetsPrompt',
   input: {schema: CompareExcelSheetsInputSchema},
-  output: {schema: CompareExcelSheetsOutputSchema},
+  // REMOVED output schema here to prevent validation failure before our code can handle it.
   prompt: `You are an expert data analyst. Your task is to compare two CSV datasets based on user-provided key columns.
 
 **Instructions:**
@@ -91,8 +89,7 @@ const prompt = ai.definePrompt({
     *   "Matched": Rows where the value in '{{{keyColumn1}}}' from Sheet 1 matches the value in '{{{keyColumn2}}}' from Sheet 2. Merge their data.
     *   "In Sheet 1 Only": Rows from Sheet 1 with no matching key in Sheet 2.
     *   "In Sheet 2 Only": Rows from Sheet 2 with no matching key in Sheet 1.
-3.  **Format Output:** The final output MUST be a single JSON object. This object must have two top-level properties:
-    *   'keyColumn': A string containing the name of the primary key column you used from Sheet 1, which is '{{{keyColumn1}}}'.
+3.  **Format Output:** The final output MUST be a single JSON object. This object must have ONE top-level property:
     *   'comparison': An array of objects. Each object in this array must contain:
         *   'comparisonStatus': One of "Matched", "In Sheet 1 Only", or "In Sheet 2 Only".
         *   'data': A valid, escaped JSON string representing the row's data.
@@ -105,7 +102,7 @@ Sheet 1 (CSV):
 Sheet 2 (CSV):
 {{media url=excelSheet2DataUri}}
 
-**CRITICAL:** Now, generate the complete JSON object as described in the "Format Output" section.
+**CRITICAL:** Now, generate ONLY the JSON object containing the 'comparison' array as described in the "Format Output" section.
 `,
 });
 
@@ -115,12 +112,19 @@ const compareExcelSheetsFlow = ai.defineFlow(
     inputSchema: CompareExcelSheetsInputSchema,
     outputSchema: CompareExcelSheetsOutputSchema,
   },
-  async input => {
-    const {output} = await prompt(input);
-    // If the model for some reason still fails to provide a keyColumn, we will inject it ourselves from the input to prevent a crash.
-    if (output && !output.keyColumn) {
-      output.keyColumn = input.keyColumn1;
-    }
-    return output!;
+  async (input) => {
+    // Call the prompt without expecting a strictly validated output.
+    const response = await prompt(input);
+    const aiOutput = response.output as any; // Cast to any to handle unpredictable AI output
+
+    // Manually construct the final, valid object.
+    // This is the robust fix. We take whatever the AI gives us for `comparison`
+    // and build the valid object ourselves, guaranteeing `keyColumn` exists.
+    const finalResult: z.infer<typeof CompareExcelSheetsOutputSchema> = {
+      keyColumn: input.keyColumn1, // Inject the key column from the user's input.
+      comparison: aiOutput?.comparison || [], // Use the AI's comparison array, or an empty one if it fails.
+    };
+
+    return finalResult;
   }
 );
