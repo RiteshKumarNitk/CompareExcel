@@ -58,25 +58,15 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
       const data1 = files[sheet1.fileIndex].sheets[sheet1.sheetIndex].data;
       const data2 = files[sheet2.fileIndex].sheets[sheet2.sheetIndex].data;
       
-      const sheetToDataURI = (data: ExcelRow[], sheetName: string): Promise<string> => {
+      const sheetToCsvDataURI = (data: ExcelRow[]): string => {
         const worksheet = XLSX.utils.json_to_sheet(data);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
+        const csvString = XLSX.utils.sheet_to_csv(worksheet);
+        const base64Csv = btoa(csvString);
+        return `data:text/csv;base64,${base64Csv}`;
       };
 
-      const [uri1, uri2] = await Promise.all([
-        sheetToDataURI(data1, files[sheet1.fileIndex].sheets[sheet1.sheetIndex].name),
-        sheetToDataURI(data2, files[sheet2.fileIndex].sheets[sheet2.sheetIndex].name),
-      ]);
+      const uri1 = sheetToCsvDataURI(data1);
+      const uri2 = sheetToCsvDataURI(data2);
       
       const comparisonResult = await compareExcelSheets({
         excelSheet1DataUri: uri1,

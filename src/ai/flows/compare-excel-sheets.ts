@@ -12,15 +12,16 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const CompareExcelSheetsInputSchema = z.object({
+  // Changed to expect CSV data as a text-based data URI
   excelSheet1DataUri: z
     .string()
     .describe(
-      "The first Excel sheet as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "The first Excel sheet as a text/csv data URI. Expected format: 'data:text/csv;base64,<encoded_data>'."
     ),
   excelSheet2DataUri: z
     .string()
     .describe(
-      "The second Excel sheet as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+        "The second Excel sheet as a text/csv data URI. Expected format: 'data:text/csv;base64,<encoded_data>'."
     ),
 });
 export type CompareExcelSheetsInput = z.infer<typeof CompareExcelSheetsInputSchema>;
@@ -76,24 +77,27 @@ const prompt = ai.definePrompt({
   name: 'compareExcelSheetsPrompt',
   input: {schema: CompareExcelSheetsInputSchema},
   output: {schema: CompareExcelSheetsOutputSchema},
-  prompt: `You are an expert data analyst specializing in comparing and merging data from different Excel sheets.
+  prompt: `You are an expert data analyst specializing in comparing and merging data from different Excel sheets provided as CSV data.
 
-You will receive two Excel sheets. Your task is to perform a detailed comparison and return a structured result.
+You will receive two sheets as CSV data. Your task is to perform a detailed comparison and return a structured result.
 
 1.  **Identify the Key Column:** Analyze both sheets to find the most suitable column to use as a unique identifier for matching rows. This is often an ID, email, or phone number column, even if the column names differ (e.g., "Phone Number" vs "member phone").
 2.  **Compare and Merge:**
     *   Iterate through the rows of both sheets.
-    *   If a row from Sheet 1 has a matching key in Sheet 2, merge their data. The \`comparisonStatus\` for this row should be "Matched".
-    *   If a row from Sheet 1 does not have a matching key in Sheet 2, its \`comparisonStatus\` should be "In Sheet 1 Only".
-    *   If a row from Sheet 2 does not have a matching key in Sheet 1, its \`comparisonStatus\` should be "In Sheet 2 Only".
+    *   If a row from Sheet 1 has a matching key in Sheet 2, merge their data. The 'comparisonStatus' for this row should be "Matched".
+    *   If a row from Sheet 1 does not have a matching key in Sheet 2, its 'comparisonStatus' should be "In Sheet 1 Only".
+    *   If a row from Sheet 2 does not have a matching key in Sheet 1, its 'comparisonStatus' should be "In Sheet 2 Only".
 3.  **Format Output:** Return the result as a JSON object with two fields:
     *   "keyColumn": The name of the column you identified and used for the comparison.
     *   "comparison": An array of objects, where each object has:
         *   "comparisonStatus": One of "Matched", "In Sheet 1 Only", or "In Sheet 2 Only".
         *   "data": A JSON string representing the object containing all the columns and values for that row. For matched rows, this will be a merged record. Ensure this is a valid, escaped JSON string.
 
-Sheet 1: {{media url=excelSheet1DataUri}}
-Sheet 2: {{media url=excelSheet2DataUri}}
+Sheet 1 (CSV format):
+{{media url=excelSheet1DataUri}}
+
+Sheet 2 (CSV format):
+{{media url=excelSheet2DataUri}}
 `,
 });
 
