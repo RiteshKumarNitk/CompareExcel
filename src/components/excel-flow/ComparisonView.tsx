@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, GitCompareArrows } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Textarea } from "@/components/ui/textarea";
 
 interface ComparisonViewProps {
   files: ExcelFile[];
@@ -39,6 +41,10 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     if (!sheet1 || !sheet2) {
       toast({ variant: "destructive", title: "Please select two sheets to compare." });
       return;
+    }
+    if (sheet1.name === sheet2.name) {
+        toast({ variant: "destructive", title: "Please select two different sheets." });
+        return;
     }
 
     setIsLoading(true);
@@ -76,15 +82,41 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
       setResult(comparisonResult);
     } catch (error) {
       console.error("Comparison failed:", error);
-      toast({ variant: "destructive", title: "Comparison Failed", description: "An error occurred during the comparison. Please try again." });
+      toast({ variant: "destructive", title: "Comparison Failed", description: "An AI error occurred during the comparison. Please try again." });
     } finally {
       setIsLoading(false);
     }
   };
 
+  if (files.length < 1) {
+    return (
+        <Card className="text-center shadow-lg">
+           <CardHeader>
+               <CardTitle>No Files Uploaded</CardTitle>
+           </CardHeader>
+          <CardContent>
+              <p className="text-muted-foreground">Please upload at least one Excel file to use the comparison tool.</p>
+          </CardContent>
+       </Card>
+    )
+  }
+
+  if (sheetOptions.length < 2) {
+    return (
+        <Card className="text-center shadow-lg">
+           <CardHeader>
+               <CardTitle>Not Enough Sheets</CardTitle>
+           </CardHeader>
+          <CardContent>
+              <p className="text-muted-foreground">You need at least two sheets across your files to run a comparison.</p>
+          </CardContent>
+       </Card>
+    )
+  }
+
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-6">
-      <Card>
+    <div className="w-full max-w-6xl mx-auto space-y-6">
+      <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Compare Excel Sheets</CardTitle>
           <CardDescription>
@@ -100,8 +132,8 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
               <SelectContent>
                 <SelectGroup>
                   <SelectLabel>Sheets</SelectLabel>
-                  {sheetOptions.map((opt) => (
-                    <SelectItem key={opt.name} value={JSON.stringify(opt)}>{opt.name}</SelectItem>
+                  {sheetOptions.map((opt, index) => (
+                    <SelectItem key={`${opt.name}-${index}`} value={JSON.stringify(opt)}>{opt.name}</SelectItem>
                   ))}
                 </SelectGroup>
               </SelectContent>
@@ -113,14 +145,14 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
               <SelectContent>
                  <SelectGroup>
                   <SelectLabel>Sheets</SelectLabel>
-                  {sheetOptions.map((opt) => (
-                    <SelectItem key={opt.name} value={JSON.stringify(opt)}>{opt.name}</SelectItem>
+                  {sheetOptions.map((opt, index) => (
+                    <SelectItem key={`${opt.name}-${index}`} value={JSON.stringify(opt)}>{opt.name}</SelectItem>
                   ))}
                 </SelectGroup>
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={handleCompare} disabled={isLoading || !sheet1 || !sheet2} className="w-full">
+          <Button onClick={handleCompare} disabled={isLoading || !sheet1 || !sheet2} className="w-full md:w-auto">
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -136,32 +168,41 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
         </CardContent>
       </Card>
       
-      {result && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Comparison Result</CardTitle>
-            <CardDescription>
-              Suggested Key Column for comparison: <span className="font-bold text-primary">{result.suggestedKeyColumn}</span>
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <pre className="bg-muted p-4 rounded-md text-sm font-code overflow-x-auto">
-              {result.comparisonResult}
-            </pre>
+      {isLoading && (
+        <Card className="shadow-lg">
+          <CardContent className="p-6 flex flex-col items-center justify-center">
+            <Loader2 className="mr-2 h-8 w-8 animate-spin text-primary" />
+            <p className="mt-4 text-muted-foreground">AI is analyzing your sheets...</p>
           </CardContent>
         </Card>
       )}
 
-      {files.length === 0 && (
-         <Card className="text-center">
-             <CardHeader>
-                 <CardTitle>No Files Uploaded</CardTitle>
-             </CardHeader>
-            <CardContent>
-                <p className="text-muted-foreground">Please upload at least one Excel file to use the comparison tool.</p>
-            </CardContent>
-         </Card>
+      {result && (
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle>Comparison Result</CardTitle>
+            <CardDescription>
+              Based on the analysis, here are the differences found between the two sheets.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Alert>
+              <GitCompareArrows className="h-4 w-4" />
+              <AlertTitle>Suggested Key Column</AlertTitle>
+              <AlertDescription>
+                The AI suggests using <span className="font-bold text-primary">{result.suggestedKeyColumn}</span> for the most accurate comparison.
+              </AlertDescription>
+            </Alert>
+            
+            <Textarea
+              readOnly
+              className="bg-muted font-code text-sm min-h-[300px] resize-y"
+              value={result.comparisonResult}
+            />
+          </CardContent>
+        </Card>
       )}
+
     </div>
   );
 }
