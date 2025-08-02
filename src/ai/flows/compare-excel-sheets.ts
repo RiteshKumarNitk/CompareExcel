@@ -25,9 +25,14 @@ const CompareExcelSheetsInputSchema = z.object({
 });
 export type CompareExcelSheetsInput = z.infer<typeof CompareExcelSheetsInputSchema>;
 
+const ComparisonRowSchema = z.object({
+  comparisonStatus: z.enum(["Matched", "In Sheet 1 Only", "In Sheet 2 Only"]),
+  data: z.record(z.any())
+});
+
 const CompareExcelSheetsOutputSchema = z.object({
-  comparisonResult: z.string().describe('The comparison result between the two Excel sheets, highlighting differences and suggesting key columns.'),
-  suggestedKeyColumn: z.string().describe('The suggested key column for comparing the two Excel sheets.'),
+  keyColumn: z.string().describe('The name of the column used as the key for comparison.'),
+  comparison: z.array(ComparisonRowSchema).describe("An array of rows representing the comparison result. Each row has a status and the combined data from the sheets."),
 });
 export type CompareExcelSheetsOutput = z.infer<typeof CompareExcelSheetsOutputSchema>;
 
@@ -39,17 +44,24 @@ const prompt = ai.definePrompt({
   name: 'compareExcelSheetsPrompt',
   input: {schema: CompareExcelSheetsInputSchema},
   output: {schema: CompareExcelSheetsOutputSchema},
-  prompt: `You are an expert in comparing Excel sheets and identifying discrepancies.
+  prompt: `You are an expert data analyst specializing in comparing and merging data from different Excel sheets.
 
-You will receive two Excel sheets in data URI format. Your task is to compare these sheets, highlight the differences, and suggest the most relevant column for comparison.
+You will receive two Excel sheets. Your task is to perform a detailed comparison and return a structured result.
 
-Consider the content and structure of both sheets to determine the key column that would best serve as a basis for comparison.
+1.  **Identify the Key Column:** Analyze both sheets to find the most suitable column to use as a unique identifier for matching rows. This is often an ID, email, or phone number column, even if the column names differ (e.g., "Phone Number" vs "member phone").
+2.  **Compare and Merge:**
+    *   Iterate through the rows of both sheets.
+    *   If a row from Sheet 1 has a matching key in Sheet 2, merge their data. The "comparisonStatus" for this row should be "Matched".
+    *   If a row from Sheet 1 does not have a matching key in Sheet 2, its "comparisonStatus" should be "In Sheet 1 Only".
+    *   If a row from Sheet 2 does not have a matching key in Sheet 1, its "comparisonStatus" should be "In Sheet 2 Only".
+3.  **Format Output:** Return the result as a JSON object with two fields:
+    *   "keyColumn": The name of the column you identified and used for the comparison.
+    *   "comparison": An array of objects, where each object has:
+        *   "comparisonStatus": One of "Matched", "In Sheet 1 Only", or "In Sheet 2 Only".
+        *   "data": An object containing all the columns and values for that row from both sheets. For matched rows, this will be a merged record.
 
 Sheet 1: {{media url=excelSheet1DataUri}}
 Sheet 2: {{media url=excelSheet2DataUri}}
-
-Comparison Result: A detailed comparison highlighting added, removed, and changed rows, and any structural differences between the sheets.
-Suggested Key Column: The name of the column that is most suitable for comparing the two sheets. For example, it could be an "ID" column, "Name" column, etc.
 `,
 });
 

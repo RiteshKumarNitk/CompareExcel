@@ -8,16 +8,18 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { SlidersHorizontal, ArrowUpDown, Plus, Trash2, Download, EyeOff, Calculator, X } from "lucide-react";
+import { SlidersHorizontal, ArrowUpDown, Plus, Trash2, Download, Calculator, X, BadgeCheck, BadgeX, BadgePlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 interface DataTableProps {
   sheet: ExcelSheet;
   onUpdate: (newData: ExcelRow[]) => void;
+  isComparisonResult?: boolean;
 }
 
-export default function DataTable({ sheet, onUpdate }: DataTableProps) {
+export default function DataTable({ sheet, onUpdate, isComparisonResult = false }: DataTableProps) {
   const [data, setData] = useState<ExcelRow[]>(sheet.data);
   const [columns, setColumns] = useState<string[]>([]);
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({});
@@ -29,9 +31,21 @@ export default function DataTable({ sheet, onUpdate }: DataTableProps) {
 
   useEffect(() => {
     const initialColumns = data.length > 0 ? Object.keys(data[0]) : [];
-    setColumns(initialColumns);
-    setVisibleColumns(initialColumns.reduce((acc, col) => ({ ...acc, [col]: true }), {}));
-  }, [data]);
+    const orderedColumns = isComparisonResult 
+        ? ['comparisonStatus', ...initialColumns.filter(c => c !== 'comparisonStatus')]
+        : initialColumns;
+
+    setColumns(orderedColumns);
+    setVisibleColumns(orderedColumns.reduce((acc, col) => ({ ...acc, [col]: true }), {}));
+    setFilters({});
+    setSortConfig(null);
+  }, [sheet, isComparisonResult]);
+
+  // Update data state when sheet data prop changes
+  useEffect(() => {
+      setData(sheet.data);
+  }, [sheet.data]);
+
 
   const handleSort = (key: string) => {
     let direction: "asc" | "desc" = "asc";
@@ -58,6 +72,8 @@ export default function DataTable({ sheet, onUpdate }: DataTableProps) {
     const sorted = [...filteredData].sort((a, b) => {
       const valA = a[sortConfig.key];
       const valB = b[sortConfig.key];
+      if (valA === null || valA === undefined) return 1;
+      if (valB === null || valB === undefined) return -1;
       if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
       if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
       return 0;
@@ -74,10 +90,14 @@ export default function DataTable({ sheet, onUpdate }: DataTableProps) {
     onUpdate(newData);
   };
 
-  const removeRow = (originalIndex: number) => {
-    const newData = data.filter((_, i) => i !== originalIndex);
-    setData(newData);
-    onUpdate(newData);
+  const removeRow = (rowIndex: number) => {
+    const rowToRemove = sortedData[rowIndex];
+    const originalIndex = data.findIndex(item => item === rowToRemove);
+    if(originalIndex !== -1) {
+        const newData = data.filter((_, i) => i !== originalIndex);
+        setData(newData);
+        onUpdate(newData);
+    }
   };
   
   const addColumn = () => {
@@ -112,10 +132,11 @@ export default function DataTable({ sheet, onUpdate }: DataTableProps) {
   };
 
   const handleEdit = (rowIndex: number, colKey: string, value: any) => {
-    const newData = [...data];
-    const originalIndex = data.indexOf(sortedData[rowIndex]);
+    const rowToUpdate = sortedData[rowIndex];
+    const originalIndex = data.findIndex(item => item === rowToUpdate);
     if (originalIndex !== -1) {
-        newData[originalIndex][colKey] = value;
+        const newData = [...data];
+        newData[originalIndex] = { ...newData[originalIndex], [colKey]: value };
         setData(newData);
         onUpdate(newData);
     }
@@ -148,37 +169,64 @@ export default function DataTable({ sheet, onUpdate }: DataTableProps) {
     }
   }, [data]);
 
+  const renderStatusBadge = (status: string) => {
+    switch (status) {
+      case 'Matched':
+        return <Badge variant="default" className="bg-green-500 hover:bg-green-600"><BadgeCheck className="mr-1 h-4 w-4" /> Matched</Badge>;
+      case 'In Sheet 1 Only':
+        return <Badge variant="secondary"><BadgeX className="mr-1 h-4 w-4" /> In Sheet 1 Only</Badge>;
+      case 'In Sheet 2 Only':
+        return <Badge variant="outline"><BadgePlus className="mr-1 h-4 w-4" /> In Sheet 2 Only</Badge>;
+      default:
+        return status;
+    }
+  };
+
+
+  if (!sheet) {
+    return (
+        <Card>
+            <CardContent className="p-8 text-center text-muted-foreground">
+                <p>No sheet data available.</p>
+            </CardContent>
+        </Card>
+    );
+  }
+
+
   return (
-    <Card className="w-full shadow-lg">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-2xl font-bold">{sheet.name}</CardTitle>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={addRow}><Plus className="mr-2" />Add Row</Button>
-          <Button variant="outline" onClick={addColumn}><Plus className="mr-2" />Add Column</Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline"><SlidersHorizontal className="mr-2" /> View</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {columns.map((col) => (
-                <DropdownMenuCheckboxItem
-                  key={col}
-                  checked={!!visibleColumns[col]}
-                  onCheckedChange={(checked) =>
-                    setVisibleColumns({ ...visibleColumns, [col]: !!checked })
-                  }
-                >
-                  {col}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button onClick={exportToExcel}><Download className="mr-2" />Export</Button>
-        </div>
-      </CardHeader>
-      <CardContent>
+    <div className="w-full">
+        {!isComparisonResult && (
+            <CardHeader className="flex flex-col md:flex-row md:items-center justify-between px-0 pb-4">
+                <CardTitle className="text-2xl font-bold">{sheet.name}</CardTitle>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <Button variant="outline" onClick={addRow}><Plus className="mr-2" />Add Row</Button>
+                    <Button variant="outline" onClick={addColumn}><Plus className="mr-2" />Add Column</Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                        <Button variant="outline"><SlidersHorizontal className="mr-2" /> View</Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {columns.map((col) => (
+                            <DropdownMenuCheckboxItem
+                            key={col}
+                            checked={!!visibleColumns[col]}
+                            onCheckedChange={(checked) =>
+                                setVisibleColumns({ ...visibleColumns, [col]: !!checked })
+                            }
+                            disabled={isComparisonResult && col === 'comparisonStatus'}
+                            >
+                            {col}
+                            </DropdownMenuCheckboxItem>
+                        ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button onClick={exportToExcel}><Download className="mr-2" />Export</Button>
+                </div>
+            </CardHeader>
+        )}
         <div className="rounded-md border overflow-auto">
           <Table>
             <TableHeader>
@@ -187,14 +235,18 @@ export default function DataTable({ sheet, onUpdate }: DataTableProps) {
                 {currentColumns.map((col) => {
                   const stats = getColumnStats(col);
                   return (
-                      <TableHead key={col} className="min-w-[150px]">
+                      <TableHead key={col} className="min-w-[150px] whitespace-nowrap">
                           <div className="flex items-center justify-between gap-2">
                              <div onClick={() => handleSort(col)} className="flex items-center gap-2 cursor-pointer hover:text-primary">
                                   <span>{col}</span>
-                                  {sortConfig?.key === col && <ArrowUpDown className="h-4 w-4" />}
+                                  {sortConfig?.key === col ? (
+                                    <ArrowUpDown className="h-4 w-4" />
+                                  ) : (
+                                    <ArrowUpDown className="h-4 w-4 text-muted-foreground/50" />
+                                  )}
                              </div>
                              <div className="flex items-center gap-1">
-                                  {stats && (
+                                  {stats && col !== 'comparisonStatus' && (
                                       <Popover>
                                           <PopoverTrigger asChild><Button variant="ghost" size="icon" className="h-6 w-6"><Calculator size={14}/></Button></PopoverTrigger>
                                           <PopoverContent className="w-64">
@@ -212,7 +264,9 @@ export default function DataTable({ sheet, onUpdate }: DataTableProps) {
                                           </PopoverContent>
                                       </Popover>
                                   )}
-                                  <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => removeColumn(col)}><X size={14}/></Button>
+                                  {col !== 'comparisonStatus' && (
+                                     <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => removeColumn(col)}><X size={14}/></Button>
+                                  )}
                              </div>
                           </div>
                       </TableHead>
@@ -224,7 +278,7 @@ export default function DataTable({ sheet, onUpdate }: DataTableProps) {
                 {currentColumns.map((col) => (
                   <TableHead key={`${col}-filter`}>
                     <Input
-                      placeholder={`Filter...`}
+                      placeholder={`Filter ${col}...`}
                       value={filters[col] || ""}
                       onChange={(e) =>
                         setFilters({ ...filters, [col]: e.target.value })
@@ -236,17 +290,15 @@ export default function DataTable({ sheet, onUpdate }: DataTableProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedData.map((row, rowIndex) => {
-                const originalIndex = data.indexOf(row);
-                return (
+              {sortedData.map((row, rowIndex) => (
                   <TableRow key={rowIndex}>
                     <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => removeRow(originalIndex)}>
+                      <Button variant="ghost" size="icon" onClick={() => removeRow(rowIndex)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </TableCell>
                     {currentColumns.map((col) => (
-                      <TableCell key={col} onDoubleClick={() => setEditingCell({rowIndex, colKey: col})}>
+                      <TableCell key={col} onDoubleClick={() => col !== 'comparisonStatus' && setEditingCell({rowIndex, colKey: col})}>
                         {editingCell?.rowIndex === rowIndex && editingCell?.colKey === col ? (
                           <Input 
                             autoFocus
@@ -257,19 +309,20 @@ export default function DataTable({ sheet, onUpdate }: DataTableProps) {
                               if(e.key === 'Escape') setEditingCell(null);
                             }}
                           />
+                        ) : col === 'comparisonStatus' ? (
+                          renderStatusBadge(row[col])
                         ) : (
                           <span className="truncate block">{String(row[col] ?? '')}</span>
                         )}
                       </TableCell>
                     ))}
                   </TableRow>
-                );
-              })}
+                )
+              )}
             </TableBody>
           </Table>
         </div>
-        {sortedData.length === 0 && <div className="text-center p-8 text-muted-foreground">No data to display.</div>}
-      </CardContent>
-    </Card>
+        {sortedData.length === 0 && <div className="text-center p-8 text-muted-foreground">No data to display. Try adjusting your filters.</div>}
+    </div>
   );
 }
