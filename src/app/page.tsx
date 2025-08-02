@@ -38,46 +38,57 @@ export default function Home() {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = event.target.files;
     if (!selectedFiles || selectedFiles.length === 0) return;
-
-    const newExcelFiles: ExcelFile[] = [];
-    Array.from(selectedFiles).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const data = e.target?.result;
-          const workbook = XLSX.read(data, { type: "binary" });
-          const excelFile: ExcelFile = {
-            name: file.name,
-            sheets: workbook.SheetNames.map((sheetName) => ({
-              name: sheetName,
-              data: XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]),
-            })),
-          };
-          newExcelFiles.push(excelFile);
-          if (newExcelFiles.length === selectedFiles.length) {
-            setFiles((prevFiles) => [...prevFiles, ...newExcelFiles]);
-            if (activeView.type === "none" && newExcelFiles.length > 0 && newExcelFiles[0].sheets.length > 0) {
-              setActiveView({ type: 'sheet', fileIndex: files.length, sheetIndex: 0 });
-            }
+  
+    const filePromises = Array.from(selectedFiles).map((file) => {
+      return new Promise<ExcelFile | null>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = e.target?.result;
+            const workbook = XLSX.read(data, { type: 'binary' });
+            const excelFile: ExcelFile = {
+              name: file.name,
+              sheets: workbook.SheetNames.map((sheetName) => ({
+                name: sheetName,
+                data: XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]),
+              })),
+            };
+            resolve(excelFile);
+          } catch (error) {
+            console.error('Error parsing file:', error);
+            toast({
+              variant: 'destructive',
+              title: 'File Error',
+              description: `Could not parse ${file.name}. Please ensure it is a valid Excel file.`,
+            });
+            resolve(null);
           }
-        } catch (error) {
-          console.error("Error parsing file:", error);
+        };
+        reader.onerror = () => {
           toast({
-            variant: "destructive",
-            title: "File Error",
-            description: `Could not parse ${file.name}. Please ensure it is a valid Excel file.`,
-          });
-        }
-      };
-      reader.onerror = () => {
-        toast({
-            variant: "destructive",
-            title: "File Error",
+            variant: 'destructive',
+            title: 'File Error',
             description: `Could not read the file ${file.name}.`,
           });
-      };
-      reader.readAsBinaryString(file);
+          resolve(null);
+        };
+        reader.readAsBinaryString(file);
+      });
     });
+  
+    Promise.all(filePromises).then((results) => {
+      const newExcelFiles = results.filter((file): file is ExcelFile => file !== null);
+      if (newExcelFiles.length > 0) {
+        setFiles((prevFiles) => {
+          const updatedFiles = [...prevFiles, ...newExcelFiles];
+          if (activeView.type === 'none' && updatedFiles.length > 0 && updatedFiles[0].sheets.length > 0) {
+            setActiveView({ type: 'sheet', fileIndex: 0, sheetIndex: 0 });
+          }
+          return updatedFiles;
+        });
+      }
+    });
+  
     event.target.value = ''; // Reset file input
   };
   
