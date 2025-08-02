@@ -58,7 +58,7 @@ export default function Home() {
             const workbook = XLSX.read(data, { type: 'binary' });
             const excelFile: ExcelFile = {
               name: file.name,
-              sheets: workbook.SheetNames.map((sheetName, index) => ({
+              sheets: workbook.SheetNames.map((sheetName) => ({
                 name: sheetName,
                 data: XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]),
               })),
@@ -107,10 +107,9 @@ export default function Home() {
   const handleDataUpdate = (fileIndex: number, sheetIndex: number, newData: any[]) => {
     setFiles(prevFiles => {
       const updatedFiles = [...prevFiles];
-      if(updatedFiles[fileIndex] && updatedFiles[fileIndex].sheets[sheetIndex]) {
-        updatedFiles[fileIndex].sheets[sheetIndex].data = newData;
-      }
-      return updatedFiles;
+      const newSheetData = {...updatedFiles[fileIndex].sheets[sheetIndex], data: newData};
+      updatedFiles[fileIndex].sheets[sheetIndex] = newSheetData;
+      return [...updatedFiles];
     })
   }
 

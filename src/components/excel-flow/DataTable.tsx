@@ -39,7 +39,7 @@ export default function DataTable({ sheet, onUpdate, isComparisonResult = false 
     setVisibleColumns(orderedColumns.reduce((acc, col) => ({ ...acc, [col]: true }), {}));
     setFilters({});
     setSortConfig(null);
-  }, [sheet, isComparisonResult]);
+  }, [sheet, data, isComparisonResult]);
 
   // Update data state when sheet data prop changes
   useEffect(() => {
@@ -84,7 +84,10 @@ export default function DataTable({ sheet, onUpdate, isComparisonResult = false 
   const currentColumns = useMemo(() => columns.filter(col => visibleColumns[col]), [columns, visibleColumns]);
 
   const addRow = () => {
-    const newRow = columns.reduce((acc, col) => ({ ...acc, [col]: "" }), {});
+    const newRow: ExcelRow = columns.reduce((acc, col) => {
+        acc[col] = "";
+        return acc;
+    }, {} as ExcelRow);
     const newData = [...data, newRow];
     setData(newData);
     onUpdate(newData);
@@ -103,7 +106,8 @@ export default function DataTable({ sheet, onUpdate, isComparisonResult = false 
   const addColumn = () => {
     const newColumnName = prompt("Enter new column name:");
     if (newColumnName && !columns.includes(newColumnName)) {
-      setColumns([...columns, newColumnName]);
+      const newColumns = [...columns, newColumnName];
+      setColumns(newColumns);
       setVisibleColumns(prev => ({...prev, [newColumnName]: true}));
       const newData = data.map(row => ({...row, [newColumnName]: ''}));
       setData(newData);
@@ -284,6 +288,7 @@ export default function DataTable({ sheet, onUpdate, isComparisonResult = false 
                         setFilters({ ...filters, [col]: e.target.value })
                       }
                       className="h-8"
+                      disabled={isComparisonResult && col === 'comparisonStatus'}
                     />
                   </TableHead>
                 ))}
