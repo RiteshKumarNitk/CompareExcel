@@ -78,27 +78,30 @@ const prompt = ai.definePrompt({
   input: {schema: CompareExcelSheetsInputSchema},
   output: {schema: CompareExcelSheetsOutputSchema},
   model: 'googleai/gemini-2.0-flash',
-  prompt: `You are an expert data analyst specializing in comparing and merging data from different Excel sheets provided as CSV data.
+  prompt: `You are an expert data analyst. Your task is to compare two CSV datasets and return a structured JSON result.
 
-You will receive two sheets as CSV data. Your task is to perform a detailed comparison and return a structured result.
+**Instructions:**
 
-1.  **Identify the Key Column:** Analyze both sheets to find the most suitable column to use as a unique identifier for matching rows. This is often an ID, email, or phone number column, even if the column names differ (e.g., "Phone Number" vs "member phone").
+1.  **Identify Key Column:** Find the best column to match rows between the two sheets (e.g., ID, email, phone number).
 2.  **Compare and Merge:**
-    *   Iterate through the rows of both sheets.
-    *   If a row from Sheet 1 has a matching key in Sheet 2, merge their data. The 'comparisonStatus' for this row should be "Matched".
-    *   If a row from Sheet 1 does not have a matching key in Sheet 2, its 'comparisonStatus' should be "In Sheet 1 Only".
-    *   If a row from Sheet 2 does not have a matching key in Sheet 1, its 'comparisonStatus' should be "In Sheet 2 Only".
-3.  **Format Output:** Return the result as a JSON object with two fields:
-    *   "keyColumn": The name of the column you identified and used for the comparison.
-    *   "comparison": An array of objects, where each object has:
-        *   "comparisonStatus": One of "Matched", "In Sheet 1 Only", or "In Sheet 2 Only".
-        *   "data": A JSON string representing the object containing all the columns and values for that row. For matched rows, this will be a merged record. Ensure this is a valid, escaped JSON string.
+    *   "Matched": Rows with the same key in both sheets. Merge their data.
+    *   "In Sheet 1 Only": Rows from Sheet 1 with no matching key in Sheet 2.
+    *   "In Sheet 2 Only": Rows from Sheet 2 with no matching key in Sheet 1.
+3.  **Format Output:** The final output MUST be a single JSON object with two properties:
+    *   'keyColumn': A string with the name of the column used for matching.
+    *   'comparison': An array of objects, each containing:
+        *   'comparisonStatus': A string, one of "Matched", "In Sheet 1 Only", or "In Sheet 2 Only".
+        *   'data': A valid, escaped JSON string representing the row's data.
 
-Sheet 1 (CSV format):
+**Data:**
+
+Sheet 1 (CSV):
 {{media url=excelSheet1DataUri}}
 
-Sheet 2 (CSV format):
+Sheet 2 (CSV):
 {{media url=excelSheet2DataUri}}
+
+**Result (JSON object):**
 `,
 });
 
