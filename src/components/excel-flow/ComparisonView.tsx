@@ -22,6 +22,11 @@ interface SheetIdentifier {
   name: string;
 }
 
+// Helper to handle unicode strings for btoa
+const utf8_to_b64 = (str: string) => {
+    return window.btoa(unescape(encodeURIComponent(str)));
+}
+
 export default function ComparisonView({ files }: ComparisonViewProps) {
   const [sheet1, setSheet1] = useState<SheetIdentifier | null>(null);
   const [sheet2, setSheet2] = useState<SheetIdentifier | null>(null);
@@ -61,7 +66,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
       const sheetToCsvDataURI = (data: ExcelRow[]): string => {
         const worksheet = XLSX.utils.json_to_sheet(data);
         const csvString = XLSX.utils.sheet_to_csv(worksheet);
-        const base64Csv = btoa(csvString);
+        const base64Csv = utf8_to_b64(csvString);
         return `data:text/csv;base64,${base64Csv}`;
       };
 
