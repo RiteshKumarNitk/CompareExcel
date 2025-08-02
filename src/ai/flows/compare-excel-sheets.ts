@@ -82,15 +82,15 @@ const prompt = ai.definePrompt({
 
 **Instructions:**
 
-1.  **Identify Key Column:** Find the best column to match rows between the two sheets (e.g., ID, email, phone number).
-2.  **Compare and Merge:**
+1.  **Identify Key Column:** Analyze the headers and data of both sheets to determine the best column for matching rows. This is likely an ID, email, or phone number column.
+2.  **Compare and Merge Data:**
     *   "Matched": Rows with the same key in both sheets. Merge their data.
     *   "In Sheet 1 Only": Rows from Sheet 1 with no matching key in Sheet 2.
     *   "In Sheet 2 Only": Rows from Sheet 2 with no matching key in Sheet 1.
-3.  **Format Output:** The final output MUST be a single JSON object with two properties:
-    *   'keyColumn': A string with the name of the column used for matching.
-    *   'comparison': An array of objects, each containing:
-        *   'comparisonStatus': A string, one of "Matched", "In Sheet 1 Only", or "In Sheet 2 Only".
+3.  **Format Output:** The final output MUST be a single JSON object. This object must have two top-level properties:
+    *   'keyColumn': A string containing the name of the column you chose for matching.
+    *   'comparison': An array of objects. Each object in this array must contain:
+        *   'comparisonStatus': One of "Matched", "In Sheet 1 Only", or "In Sheet 2 Only".
         *   'data': A valid, escaped JSON string representing the row's data.
 
 **Data:**
@@ -101,7 +101,7 @@ Sheet 1 (CSV):
 Sheet 2 (CSV):
 {{media url=excelSheet2DataUri}}
 
-**Result (JSON object):**
+**CRITICAL:** Now, generate the complete JSON object as described in the "Format Output" section.
 `,
 });
 
