@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, useMemo } from "react";
@@ -19,7 +20,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { FileUp, GitCompareArrows, Sheet as SheetIcon, File as FileIcon, X } from "lucide-react";
+import { FileUp, GitCompareArrows, Sheet as SheetIcon, File as FileIcon, X, Loader2 } from "lucide-react";
 import DataTable from "@/components/excel-flow/DataTable";
 import ComparisonView from "@/components/excel-flow/ComparisonView";
 import { useToast } from "@/hooks/use-toast";
@@ -32,6 +33,7 @@ type ActiveView =
 export default function Home() {
   const [files, setFiles] = useState<ExcelFile[]>([]);
   const [activeView, setActiveView] = useState<ActiveView>({ type: "none" });
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -39,8 +41,9 @@ export default function Home() {
     const selectedFiles = event.target.files;
     if (!selectedFiles || selectedFiles.length === 0) return;
   
+    setIsUploading(true);
+
     const filePromises = Array.from(selectedFiles).map((file) => {
-      // Check for duplicates
       if (files.some(f => f.name === file.name)) {
         toast({
           variant: 'destructive',
@@ -55,7 +58,7 @@ export default function Home() {
         reader.onload = (e) => {
           try {
             const data = e.target?.result;
-            const workbook = XLSX.read(data, { type: 'binary' });
+            const workbook = XLSX.read(data, { type: 'array' }); // Use 'array' for better large file support
             const excelFile: ExcelFile = {
               name: file.name,
               sheets: workbook.SheetNames.map((sheetName) => ({
@@ -82,7 +85,7 @@ export default function Home() {
           });
           resolve(null);
         };
-        reader.readAsBinaryString(file);
+        reader.readAsArrayBuffer(file); // Use readAsArrayBuffer
       });
     });
   
@@ -97,6 +100,7 @@ export default function Home() {
           return updatedFiles;
         });
       }
+      setIsUploading(false);
     });
   
     if (fileInputRef.current) {
@@ -148,8 +152,10 @@ export default function Home() {
                 <Button
                   className="w-full"
                   onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
                 >
-                  <FileUp className="mr-2" /> Upload Files
+                  {isUploading ? <Loader2 className="mr-2 animate-spin" /> : <FileUp className="mr-2" />}
+                  {isUploading ? 'Processing...' : 'Upload Files'}
                 </Button>
                 <input
                   type="file"
@@ -158,6 +164,7 @@ export default function Home() {
                   className="hidden"
                   accept=".xlsx, .xls, .csv"
                   multiple
+                  disabled={isUploading}
                 />
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -207,8 +214,16 @@ export default function Home() {
         <header className="flex items-center border-b p-2 h-14">
           <SidebarTrigger />
         </header>
-        <main className="flex-1 p-4 md:p-6 lg:p-8 bg-muted/30">
-            {activeView.type === 'none' && (
+        <main className="flex-1 p-4 md:p-6 lg:p-8 bg-muted/30 relative">
+            {isUploading && (
+              <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+                <div className="flex items-center gap-4 text-xl">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <p>Processing your files, please wait...</p>
+                </div>
+              </div>
+            )}
+            {activeView.type === 'none' && !isUploading && (
                 <div className="flex items-center justify-center h-full">
                     <Card className="w-full max-w-lg text-center shadow-lg border-dashed border-2">
                         <CardHeader>
@@ -244,3 +259,5 @@ export default function Home() {
     </SidebarProvider>
   );
 }
+
+    
