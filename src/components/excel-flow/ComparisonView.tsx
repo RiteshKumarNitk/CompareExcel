@@ -131,8 +131,8 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
       toast({ variant: "destructive", title: "Please select two sheets and a key column for each." });
       return;
     }
-    if (sheet1.name === sheet2.name && keyColumn1 === keyColumn2) {
-        toast({ variant: "destructive", title: "Please select two different sheets or different key columns." });
+    if (sheet1.fileIndex === sheet2.fileIndex && sheet1.sheetIndex === sheet2.sheetIndex && keyColumn1 === keyColumn2) {
+        toast({ variant: "destructive", title: "Cannot compare a sheet with itself using the same key column." });
         return;
     }
 
@@ -356,7 +356,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
                         <thead>
                             <tr className="border-b">
                                 <th className="p-2 text-left font-semibold sticky left-0 bg-card z-10 w-16">S.No.</th>
-                                <th className="p-2 text-left font-semibold sticky left-16 bg-card z-10">Key: {keyColumn1}</th>
+                                <th className="p-2 text-left font-semibold sticky left-16 bg-card z-10">Key: {keyColumn1} / {keyColumn2}</th>
                                 <th className="p-2 text-left font-semibold sticky left-48 bg-card z-10">Status</th>
                                 {result.allColumns.filter(c => c !== keyColumn1 && c !== keyColumn2).map(col => (
                                     <th key={col} className="p-2 text-center font-semibold border-l" colSpan={2}>{col}</th>
@@ -389,7 +389,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
                                 }
                                 
                                 return (
-                                <tr key={item.key} className="border-b hover:bg-muted/50">
+                                <tr key={`${item.key}-${index}`} className="border-b hover:bg-muted/50">
                                     <td className="p-2 sticky left-0 bg-card z-10">{index + 1}</td>
                                     <td className="p-2 sticky left-16 bg-card z-10 font-medium">{String(item.key)}</td>
                                     <td className="p-2 sticky left-48 bg-card z-10">{getStatusBadge(item.status)}</td>
@@ -424,4 +424,5 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
 
     </div>
   );
-}
+
+    
