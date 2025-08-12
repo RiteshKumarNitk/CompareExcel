@@ -1,6 +1,7 @@
 
 "use client";
 
+import * as React from "react";
 import { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import type { ExcelFile, ExcelRow } from "./types";
@@ -160,7 +161,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     if (!result || !result.comparison) return;
 
     const dataToExport = result.comparison.map((item, index) => {
-        const base = { 'S.No.': index + 1, 'Key': item.key, 'Status': item.status };
+        const base: ExcelRow = { 'S.No.': index + 1, 'Key': item.key, 'Status': item.status };
         result.allColumns.forEach(col => {
             if (col !== keyColumn1 && col !== keyColumn2) {
                 base[`${col} (Sheet 1)`] = item.data1?.[col] ?? '';
@@ -424,5 +425,3 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     </div>
   );
 }
-
-    
