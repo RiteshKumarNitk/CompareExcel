@@ -95,33 +95,52 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     key1: string,
     key2: string
   ): ComparisonResult => {
-    const map1 = new Map(data1.map(row => [row[key1], row]));
-    const map2 = new Map(data2.map(row => [row[key2], row]));
-    const comparison: ComparisonResult['comparison'] = [];
     
+    const groupRowsByKey = (data: ExcelRow[], keyColumn: string): Map<any, ExcelRow[]> => {
+        const map = new Map<any, ExcelRow[]>();
+        data.forEach(row => {
+            const key = row[keyColumn];
+            if (!map.has(key)) {
+                map.set(key, []);
+            }
+            map.get(key)!.push(row);
+        });
+        return map;
+    };
+
+    const map1 = groupRowsByKey(data1, key1);
+    const map2 = groupRowsByKey(data2, key2);
+
+    const comparison: ComparisonResult['comparison'] = [];
     const allKeys = new Set([...map1.keys(), ...map2.keys()]);
     const allColumns = new Set([...sheet1Columns, ...sheet2Columns]);
 
     allKeys.forEach(key => {
-      const row1 = map1.get(key);
-      const row2 = map2.get(key);
+        const rows1 = map1.get(key) || [];
+        const rows2 = map2.get(key) || [];
+        const maxRows = Math.max(rows1.length, rows2.length);
 
-      if (row1 && row2) {
-        let isChanged = false;
-        for (const col of allColumns) {
-            if (String(row1[col] ?? '') !== String(row2[col] ?? '')) {
-                isChanged = true;
-                break;
+        for (let i = 0; i < maxRows; i++) {
+            const row1 = rows1[i] || null;
+            const row2 = rows2[i] || null;
+
+            if (row1 && row2) {
+                let isChanged = false;
+                for (const col of allColumns) {
+                    if (String(row1[col] ?? '') !== String(row2[col] ?? '')) {
+                        isChanged = true;
+                        break;
+                    }
+                }
+                comparison.push({ status: isChanged ? "Changed" : "Matched", key, data1: row1, data2: row2 });
+            } else if (row1) {
+                comparison.push({ status: "Removed", key, data1: row1, data2: null });
+            } else if (row2) {
+                comparison.push({ status: "Added", key, data1: null, data2: row2 });
             }
         }
-        comparison.push({ status: isChanged ? "Changed" : "Matched", key, data1: row1, data2: row2 });
-      } else if (row1) {
-        comparison.push({ status: "Removed", key, data1: row1, data2: null });
-      } else if (row2) {
-        comparison.push({ status: "Added", key, data1: null, data2: row2 });
-      }
     });
-
+    
     return { comparison, allColumns: Array.from(allColumns) };
   };
 
@@ -342,6 +361,13 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
                         Export Result
                     </Button>
                 </div>
+                <Alert className="mt-4">
+                    <AlertTitle>Comparison Keys</AlertTitle>
+                    <AlertDescription>
+                        Sheet 1 ({sheet1?.name}) key: <strong>{keyColumn1}</strong> <br />
+                        Sheet 2 ({sheet2?.name}) key: <strong>{keyColumn2}</strong>
+                    </AlertDescription>
+                </Alert>
                 <div className="flex items-center gap-2 pt-4 flex-wrap">
                     <Button variant={filter === 'all' ? 'default' : 'outline'} onClick={() => setFilter('all')}>All ({resultStats.all})</Button>
                     <Button variant={filter === 'Changed' ? 'default' : 'outline'} onClick={() => setFilter('Changed')}>Changed ({resultStats.Changed})</Button>
@@ -424,5 +450,4 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
 
     </div>
   );
-
-    
+}
