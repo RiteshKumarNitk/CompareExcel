@@ -9,18 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { SlidersHorizontal, ArrowUpDown, Plus, Trash2, Download, Calculator, X, BadgeCheck, BadgePlus, CircleDot, ArrowRightLeft } from "lucide-react";
+import { SlidersHorizontal, ArrowUpDown, Plus, Trash2, Download, Calculator, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 interface DataTableProps {
   sheet: ExcelSheet;
   onUpdate: (newData: ExcelRow[]) => void;
-  isComparisonResult?: boolean;
 }
 
-export default function DataTable({ sheet, onUpdate, isComparisonResult = false }: DataTableProps) {
+export default function DataTable({ sheet, onUpdate }: DataTableProps) {
   const [data, setData] = useState<ExcelRow[]>(sheet.data);
   const [columns, setColumns] = useState<string[]>([]);
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({});
@@ -33,15 +31,12 @@ export default function DataTable({ sheet, onUpdate, isComparisonResult = false 
   useEffect(() => {
     const initialData = sheet.data || [];
     const initialColumns = initialData.length > 0 ? Object.keys(initialData[0]) : [];
-    const orderedColumns = isComparisonResult 
-        ? ['comparisonStatus', ...initialColumns.filter(c => c !== 'comparisonStatus')]
-        : initialColumns;
-
-    setColumns(orderedColumns);
-    setVisibleColumns(orderedColumns.reduce((acc, col) => ({ ...acc, [col]: true }), {}));
+    
+    setColumns(initialColumns);
+    setVisibleColumns(initialColumns.reduce((acc, col) => ({ ...acc, [col]: true }), {}));
     setFilters({});
     setSortConfig(null);
-  }, [sheet, isComparisonResult]);
+  }, [sheet]);
 
   // Update data state when sheet data prop changes
   useEffect(() => {
@@ -175,22 +170,6 @@ export default function DataTable({ sheet, onUpdate, isComparisonResult = false 
     }
   }, [data]);
 
-  const renderStatusBadge = (status: string) => {
-    switch (status) {
-      case 'Matched':
-        return <Badge variant="outline"><CircleDot className="mr-1 h-4 w-4"/> Unchanged</Badge>;
-      case 'Changed':
-        return <Badge variant="secondary" className="bg-amber-400 text-black hover:bg-amber-500"><ArrowRightLeft className="mr-1 h-4 w-4"/> Changed</Badge>;
-      case 'Removed':
-        return <Badge variant="destructive"> In Sheet 1 Only</Badge>;
-      case 'Added':
-        return <Badge className="bg-green-500 hover:bg-green-600"> In Sheet 2 Only</Badge>;
-      default:
-        return status;
-    }
-  };
-
-
   if (!sheet) {
     return (
         <Card>
@@ -203,137 +182,129 @@ export default function DataTable({ sheet, onUpdate, isComparisonResult = false 
 
 
   return (
-    <div className="w-full">
-        {!isComparisonResult && (
-            <CardHeader className="flex flex-col md:flex-row md:items-center justify-between px-0 pb-4">
-                <CardTitle className="text-2xl font-bold">{sheet.name}</CardTitle>
-                <div className="flex items-center gap-2 flex-wrap">
-                    <Button variant="outline" onClick={addRow}><Plus className="mr-2" />Add Row</Button>
-                    <Button variant="outline" onClick={addColumn}><Plus className="mr-2" />Add Column</Button>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                        <Button variant="outline"><SlidersHorizontal className="mr-2" /> View</Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        {columns.map((col) => (
-                            <DropdownMenuCheckboxItem
-                            key={col}
-                            checked={!!visibleColumns[col]}
-                            onCheckedChange={(checked) =>
-                                setVisibleColumns({ ...visibleColumns, [col]: !!checked })
-                            }
-                            disabled={isComparisonResult && col === 'comparisonStatus'}
-                            >
-                            {col}
-                            </DropdownMenuCheckboxItem>
-                        ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Button onClick={exportToExcel}><Download className="mr-2" />Export</Button>
-                </div>
-            </CardHeader>
-        )}
-        <div className="rounded-md border overflow-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[50px]">Actions</TableHead>
-                {currentColumns.map((col) => {
-                  const stats = getColumnStats(col);
-                  return (
-                      <TableHead key={col} className="min-w-[150px] whitespace-nowrap">
-                          <div className="flex items-center justify-between gap-2">
-                             <div onClick={() => handleSort(col)} className="flex items-center gap-2 cursor-pointer hover:text-primary">
-                                  <span>{col}</span>
-                                  {sortConfig?.key === col ? (
-                                    <ArrowUpDown className="h-4 w-4" />
-                                  ) : (
-                                    <ArrowUpDown className="h-4 w-4 text-muted-foreground/50" />
-                                  )}
-                             </div>
-                             <div className="flex items-center gap-1">
-                                  {stats && col !== 'comparisonStatus' && (
-                                      <Popover>
-                                          <PopoverTrigger asChild><Button variant="ghost" size="icon" className="h-6 w-6"><Calculator size={14}/></Button></PopoverTrigger>
-                                          <PopoverContent className="w-64">
-                                              <div className="space-y-2">
-                                                  <h4 className="font-medium leading-none">Column Stats</h4>
-                                                  <p className="text-sm text-muted-foreground">Statistics for '{col}'</p>
-                                                  <div className="text-sm">
-                                                      <div><strong>Count:</strong> {stats.count.toLocaleString()}</div>
-                                                      <div><strong>Sum:</strong> {stats.sum.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                                                      <div><strong>Average:</strong> {stats.avg.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                                                      <div><strong>Min:</strong> {stats.min.toLocaleString()}</div>
-                                                      <div><strong>Max:</strong> {stats.max.toLocaleString()}</div>
-                                                  </div>
-                                              </div>
-                                          </PopoverContent>
-                                      </Popover>
-                                  )}
-                                  {col !== 'comparisonStatus' && (
-                                     <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => removeColumn(col)}><X size={14}/></Button>
-                                  )}
-                             </div>
-                          </div>
-                      </TableHead>
-                  )
-                })}
-              </TableRow>
-              <TableRow>
-                <TableHead></TableHead>
-                {currentColumns.map((col) => (
-                  <TableHead key={`${col}-filter`}>
-                    <Input
-                      placeholder={`Filter ${col}...`}
-                      value={filters[col] || ""}
-                      onChange={(e) =>
-                        setFilters({ ...filters, [col]: e.target.value })
-                      }
-                      className="h-8"
-                      disabled={isComparisonResult && col === 'comparisonStatus'}
-                    />
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedData.map((row, rowIndex) => (
-                  <TableRow key={rowIndex}>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => removeRow(rowIndex)} disabled={isComparisonResult}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </TableCell>
-                    {currentColumns.map((col) => (
-                      <TableCell key={col} onDoubleClick={() => col !== 'comparisonStatus' && setEditingCell({rowIndex, colKey: col})}>
-                        {editingCell?.rowIndex === rowIndex && editingCell?.colKey === col ? (
-                          <Input 
-                            autoFocus
-                            defaultValue={row[col]}
-                            onBlur={(e) => handleEdit(rowIndex, col, e.target.value)}
-                            onKeyDown={(e) => {
-                              if(e.key === 'Enter') handleEdit(rowIndex, col, e.currentTarget.value);
-                              if(e.key === 'Escape') setEditingCell(null);
-                            }}
-                          />
-                        ) : col === 'comparisonStatus' ? (
-                          renderStatusBadge(row[col])
-                        ) : (
-                          <span className="truncate block">{String(row[col] ?? '')}</span>
-                        )}
-                      </TableCell>
+    <Card className="w-full shadow-lg">
+        <CardHeader className="flex flex-col md:flex-row md:items-center justify-between">
+            <CardTitle className="text-2xl font-bold">{sheet.name}</CardTitle>
+            <div className="flex items-center gap-2 flex-wrap">
+                <Button variant="outline" onClick={addRow}><Plus className="mr-2" />Add Row</Button>
+                <Button variant="outline" onClick={addColumn}><Plus className="mr-2" />Add Column</Button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                    <Button variant="outline"><SlidersHorizontal className="mr-2" /> View</Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {columns.map((col) => (
+                        <DropdownMenuCheckboxItem
+                        key={col}
+                        checked={!!visibleColumns[col]}
+                        onCheckedChange={(checked) =>
+                            setVisibleColumns({ ...visibleColumns, [col]: !!checked })
+                        }
+                        >
+                        {col}
+                        </DropdownMenuCheckboxItem>
                     ))}
-                  </TableRow>
-                )
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        {sortedData.length === 0 && <div className="text-center p-8 text-muted-foreground">No data to display. Try adjusting your filters.</div>}
-    </div>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+                <Button onClick={exportToExcel}><Download className="mr-2" />Export</Button>
+            </div>
+        </CardHeader>
+        <CardContent>
+            <div className="rounded-md border overflow-auto">
+            <Table>
+                <TableHeader>
+                <TableRow>
+                    <TableHead className="sticky left-0 bg-card z-10 w-[50px]">Actions</TableHead>
+                    {currentColumns.map((col) => {
+                    const stats = getColumnStats(col);
+                    return (
+                        <TableHead key={col} className="min-w-[200px] whitespace-nowrap">
+                            <div className="flex items-center justify-between gap-2">
+                                <div onClick={() => handleSort(col)} className="flex items-center gap-2 cursor-pointer hover:text-primary">
+                                    <span>{col}</span>
+                                    {sortConfig?.key === col ? (
+                                        <ArrowUpDown className="h-4 w-4" />
+                                    ) : (
+                                        <ArrowUpDown className="h-4 w-4 text-muted-foreground/50" />
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    {stats && (
+                                        <Popover>
+                                            <PopoverTrigger asChild><Button variant="ghost" size="icon" className="h-6 w-6"><Calculator size={14}/></Button></PopoverTrigger>
+                                            <PopoverContent className="w-64">
+                                                <div className="space-y-2">
+                                                    <h4 className="font-medium leading-none">Column Stats</h4>
+                                                    <p className="text-sm text-muted-foreground">Statistics for '{col}'</p>
+                                                    <div className="text-sm">
+                                                        <div><strong>Count:</strong> {stats.count.toLocaleString()}</div>
+                                                        <div><strong>Sum:</strong> {stats.sum.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                                                        <div><strong>Average:</strong> {stats.avg.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                                                        <div><strong>Min:</strong> {stats.min.toLocaleString()}</div>
+                                                        <div><strong>Max:</strong> {stats.max.toLocaleString()}</div>
+                                                    </div>
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+                                    )}
+                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => removeColumn(col)}><X size={14}/></Button>
+                                </div>
+                            </div>
+                        </TableHead>
+                    )
+                    })}
+                </TableRow>
+                <TableRow>
+                    <TableHead className="sticky left-0 bg-card z-10"></TableHead>
+                    {currentColumns.map((col) => (
+                    <TableHead key={`${col}-filter`}>
+                        <Input
+                        placeholder={`Filter ${col}...`}
+                        value={filters[col] || ""}
+                        onChange={(e) =>
+                            setFilters({ ...filters, [col]: e.target.value })
+                        }
+                        className="h-8"
+                        />
+                    </TableHead>
+                    ))}
+                </TableRow>
+                </TableHeader>
+                <TableBody>
+                {sortedData.map((row, rowIndex) => (
+                    <TableRow key={rowIndex}>
+                        <TableCell className="sticky left-0 bg-card z-10">
+                        <Button variant="ghost" size="icon" onClick={() => removeRow(rowIndex)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                        </TableCell>
+                        {currentColumns.map((col) => (
+                        <TableCell key={col} onDoubleClick={() => setEditingCell({rowIndex, colKey: col})}>
+                            {editingCell?.rowIndex === rowIndex && editingCell?.colKey === col ? (
+                            <Input 
+                                autoFocus
+                                defaultValue={row[col]}
+                                onBlur={(e) => handleEdit(rowIndex, col, e.target.value)}
+                                onKeyDown={(e) => {
+                                if(e.key === 'Enter') handleEdit(rowIndex, col, e.currentTarget.value);
+                                if(e.key === 'Escape') setEditingCell(null);
+                                }}
+                            />
+                            ) : (
+                                <span className="truncate block">{String(row[col] ?? '')}</span>
+                            )}
+                        </TableCell>
+                        ))}
+                    </TableRow>
+                    )
+                )}
+                </TableBody>
+            </Table>
+            </div>
+            {sortedData.length === 0 && <div className="text-center p-8 text-muted-foreground">No data to display. Try adjusting your filters.</div>}
+        </CardContent>
+    </Card>
   );
 }
-
-    
