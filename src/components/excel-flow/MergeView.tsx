@@ -106,7 +106,7 @@ export default function MergeView({ files }: MergeViewProps) {
                         if (!(col in newRow)) { 
                            newRow[col] = rightRow[col];
                         } else {
-                            newRow[`${col} (Merged)`] = rightRow[col];
+                            newRow[`${col}_(Merged)`] = rightRow[col];
                         }
                     });
                 }
@@ -275,14 +275,14 @@ export default function MergeView({ files }: MergeViewProps) {
         </Card>
       )}
 
-      {result && (
+      {result && leftSheet && rightSheet &&(
          <Card className="shadow-lg">
             <CardHeader>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
                         <CardTitle>Merge Result</CardTitle>
                         <CardDescription>
-                           Merged data from '{leftSheet?.name}' and '{rightSheet?.name}'.
+                           Merged data from '{leftSheet.name}' and '{rightSheet.name}'.
                         </CardDescription>
                     </div>
                      <Button onClick={exportToExcel} variant="outline">
@@ -304,4 +304,3 @@ export default function MergeView({ files }: MergeViewProps) {
     </div>
   );
 }
-
