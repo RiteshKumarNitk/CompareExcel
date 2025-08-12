@@ -3,7 +3,6 @@
 
 import { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
-import { compareExcelSheets, CompareExcelSheetsOutput } from "@/ai/flows/compare-excel-sheets";
 import type { ExcelFile, ExcelRow } from "./types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -23,10 +22,14 @@ interface SheetIdentifier {
   name: string;
 }
 
-// Helper to handle unicode strings for btoa
-const utf8_to_b64 = (str: string) => {
-    return window.btoa(unescape(encodeURIComponent(str)));
+interface ComparisonResult {
+    keyColumn: string;
+    comparison: {
+        comparisonStatus: "Matched" | "In Sheet 1 Only" | "In Sheet 2 Only";
+        data: Record<string, any>;
+    }[];
 }
+
 
 export default function ComparisonView({ files }: ComparisonViewProps) {
   const [sheet1, setSheet1] = useState<SheetIdentifier | null>(null);
@@ -34,7 +37,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
   const [keyColumn1, setKeyColumn1] = useState<string | null>(null);
   const [keyColumn2, setKeyColumn2] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<CompareExcelSheetsOutput | null>(null);
+  const [result, setResult] = useState<ComparisonResult | null>(null);
   const { toast } = useToast();
 
   const sheetOptions = useMemo(() => files.flatMap((file, fileIndex) =>
@@ -63,7 +66,6 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     setKeyColumn2(null);
   }, [sheet1, sheet2]);
   
-  // Reset key columns if the underlying columns change for a selected sheet
   useEffect(() => {
     if (keyColumn1 && !sheet1Columns.includes(keyColumn1)) {
         setKeyColumn1(null);
@@ -75,6 +77,38 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
         setKeyColumn2(null);
     }
   }, [keyColumn2, sheet2Columns]);
+
+  const runLocalComparison = (
+    data1: ExcelRow[],
+    data2: ExcelRow[],
+    key1: string,
+    key2: string
+  ): ComparisonResult => {
+    const map1 = new Map(data1.map(row => [row[key1], row]));
+    const map2 = new Map(data2.map(row => [row[key2], row]));
+    const comparison: ComparisonResult['comparison'] = [];
+    const allKeys = new Set([...map1.keys(), ...map2.keys()]);
+
+    allKeys.forEach(key => {
+      const row1 = map1.get(key);
+      const row2 = map2.get(key);
+
+      if (row1 && row2) {
+        // Matched
+        const mergedData = { ...row1, ...row2 };
+        delete mergedData[key2]; // Avoid duplicate key column
+        comparison.push({ comparisonStatus: "Matched", data: mergedData });
+      } else if (row1) {
+        // In Sheet 1 Only
+        comparison.push({ comparisonStatus: "In Sheet 1 Only", data: row1 });
+      } else if (row2) {
+        // In Sheet 2 Only
+        comparison.push({ comparisonStatus: "In Sheet 2 Only", data: row2 });
+      }
+    });
+
+    return { keyColumn: key1, comparison };
+  };
 
 
   const handleCompare = async () => {
@@ -90,40 +124,27 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     setIsLoading(true);
     setResult(null);
 
-    try {
-      const data1 = files[sheet1.fileIndex].sheets[sheet1.sheetIndex].data;
-      const data2 = files[sheet2.fileIndex].sheets[sheet2.sheetIndex].data;
-      
-      const sheetToCsvDataURI = (data: ExcelRow[]): string => {
-        const worksheet = XLSX.utils.json_to_sheet(data);
-        const csvString = XLSX.utils.sheet_to_csv(worksheet);
-        const base64Csv = utf8_to_b64(csvString);
-        return `data:text/csv;base64,${base64Csv}`;
-      };
+    // Use a short timeout to allow the loading spinner to render before the blocking comparison logic runs
+    setTimeout(() => {
+        try {
+            const data1 = files[sheet1.fileIndex].sheets[sheet1.sheetIndex].data;
+            const data2 = files[sheet2.fileIndex].sheets[sheet2.sheetIndex].data;
+            
+            const comparisonResult = runLocalComparison(data1, data2, keyColumn1, keyColumn2);
+            setResult(comparisonResult);
 
-      const uri1 = sheetToCsvDataURI(data1);
-      const uri2 = sheetToCsvDataURI(data2);
-      
-      const comparisonResult = await compareExcelSheets({
-        excelSheet1DataUri: uri1,
-        excelSheet2DataUri: uri2,
-        keyColumn1,
-        keyColumn2,
-      });
-
-      setResult(comparisonResult);
-    } catch (error) {
-      console.error("Comparison failed:", error);
-      toast({ variant: "destructive", title: "Comparison Failed", description: "An AI error occurred during the comparison. Please check the console and try again." });
-    } finally {
-      setIsLoading(false);
-    }
+        } catch (error) {
+            console.error("Comparison failed:", error);
+            toast({ variant: "destructive", title: "Comparison Failed", description: "An unexpected error occurred during the comparison. Please check the console and try again." });
+        } finally {
+            setIsLoading(false);
+        }
+    }, 50); // 50ms delay
   };
   
   const handleResultUpdate = (newData: ExcelRow[]) => {
     if(!result) return;
     
-    // We only update the data part, keeping the status
     const updatedComparisonData = result.comparison.map((item, index) => {
         if(newData[index]) {
             const { comparisonStatus, ...rest } = newData[index];
@@ -159,7 +180,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
       data: result.comparison.map(row => {
         return {
           comparisonStatus: row.comparisonStatus,
-          ...row.data // Data is now pre-parsed from the flow.
+          ...row.data
         };
       })
     };
@@ -198,7 +219,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
         <CardHeader>
           <CardTitle>Compare Excel Sheets</CardTitle>
           <CardDescription>
-            Select two sheets and the key column for each to use for matching rows. The AI will then analyze the differences.
+            Select two sheets and the key column for each to use for matching rows.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -292,7 +313,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
         <Card className="shadow-lg">
           <CardContent className="p-6 flex flex-col items-center justify-center min-h-[200px]">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="mt-4 text-muted-foreground text-lg">AI is analyzing your sheets...</p>
+            <p className="mt-4 text-muted-foreground text-lg">Comparing your sheets...</p>
             <p className="text-muted-foreground text-sm">This may take a moment for large files.</p>
           </CardContent>
         </Card>
@@ -341,5 +362,3 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     </div>
   );
 }
-
-    
