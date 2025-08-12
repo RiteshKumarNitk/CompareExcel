@@ -20,15 +20,17 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { FileUp, GitCompareArrows, Sheet as SheetIcon, File as FileIcon, X, Loader2 } from "lucide-react";
+import { FileUp, GitCompareArrows, Sheet as SheetIcon, File as FileIcon, X, Loader2, Link2 } from "lucide-react";
 import DataTable from "@/components/excel-flow/DataTable";
 import ComparisonView from "@/components/excel-flow/ComparisonView";
+import MergeView from "@/components/excel-flow/MergeView";
 import { useToast } from "@/hooks/use-toast";
 
 type ActiveView =
   | { type: "none" }
   | { type: "sheet"; fileIndex: number; sheetIndex: number }
-  | { type: "compare" };
+  | { type: "compare" }
+  | { type: "merge" };
 
 export default function Home() {
   const [files, setFiles] = useState<ExcelFile[]>([]);
@@ -167,6 +169,12 @@ export default function Home() {
                   disabled={isUploading}
                 />
               </SidebarMenuItem>
+               <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => setActiveView({ type: "merge" })} isActive={activeView.type === "merge"}>
+                  <Link2 />
+                  Merge Sheets
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={() => setActiveView({ type: "compare" })} isActive={activeView.type === "compare"}>
                   <GitCompareArrows />
@@ -254,10 +262,9 @@ export default function Home() {
                 />
             )}
             {activeView.type === 'compare' && <ComparisonView files={files} />}
+            {activeView.type === 'merge' && <MergeView files={files} />}
         </main>
       </SidebarInset>
     </SidebarProvider>
   );
 }
-
-    
