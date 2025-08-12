@@ -25,7 +25,7 @@ interface SheetIdentifier {
   name: string;
 }
 
-type ComparisonStatus = "Matched" | "Changed" | "Added" | "Removed";
+type ComparisonStatus = "Unchanged" | "Changed" | "In Sheet 2 Only" | "In Sheet 1 Only";
 
 interface ComparisonResult {
     comparison: {
@@ -132,11 +132,11 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
                         break;
                     }
                 }
-                comparison.push({ status: isChanged ? "Changed" : "Matched", key, data1: row1, data2: row2 });
+                comparison.push({ status: isChanged ? "Changed" : "Unchanged", key, data1: row1, data2: row2 });
             } else if (row1) {
-                comparison.push({ status: "Removed", key, data1: row1, data2: null });
+                comparison.push({ status: "In Sheet 1 Only", key, data1: row1, data2: null });
             } else if (row2) {
-                comparison.push({ status: "Added", key, data1: null, data2: row2 });
+                comparison.push({ status: "In Sheet 2 Only", key, data1: null, data2: row2 });
             }
         }
     });
@@ -200,10 +200,10 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     if (!result) return null;
     return {
         all: result.comparison.length,
-        Matched: result.comparison.filter(i => i.status === 'Matched').length,
+        Unchanged: result.comparison.filter(i => i.status === 'Unchanged').length,
         Changed: result.comparison.filter(i => i.status === 'Changed').length,
-        Added: result.comparison.filter(i => i.status === 'Added').length,
-        Removed: result.comparison.filter(i => i.status === 'Removed').length,
+        'In Sheet 2 Only': result.comparison.filter(i => i.status === 'In Sheet 2 Only').length,
+        'In Sheet 1 Only': result.comparison.filter(i => i.status === 'In Sheet 1 Only').length,
     }
   }, [result]);
 
@@ -371,9 +371,9 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
                 <div className="flex items-center gap-2 pt-4 flex-wrap">
                     <Button variant={filter === 'all' ? 'default' : 'outline'} onClick={() => setFilter('all')}>All ({resultStats.all})</Button>
                     <Button variant={filter === 'Changed' ? 'default' : 'outline'} onClick={() => setFilter('Changed')}>Changed ({resultStats.Changed})</Button>
-                    <Button variant={filter === 'Added' ? 'default' : 'outline'} onClick={() => setFilter('Added')}>Added ({resultStats.Added})</Button>
-                    <Button variant={filter === 'Removed' ? 'default' : 'outline'} onClick={() => setFilter('Removed')}>Removed ({resultStats.Removed})</Button>
-                    <Button variant={filter === 'Matched' ? 'default' : 'outline'} onClick={() => setFilter('Matched')}>Unchanged ({resultStats.Matched})</Button>
+                    <Button variant={filter === 'In Sheet 2 Only' ? 'default' : 'outline'} onClick={() => setFilter('In Sheet 2 Only')}>In Sheet 2 Only ({resultStats['In Sheet 2 Only']})</Button>
+                    <Button variant={filter === 'In Sheet 1 Only' ? 'default' : 'outline'} onClick={() => setFilter('In Sheet 1 Only')}>In Sheet 1 Only ({resultStats['In Sheet 1 Only']})</Button>
+                    <Button variant={filter === 'Unchanged' ? 'default' : 'outline'} onClick={() => setFilter('Unchanged')}>Unchanged ({resultStats.Unchanged})</Button>
                 </div>
             </CardHeader>
             <CardContent>
@@ -407,10 +407,10 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
 
                                 const getStatusBadge = (status: ComparisonStatus) => {
                                     switch(status) {
-                                        case 'Added': return <Badge className="bg-green-500 hover:bg-green-600"><CheckCircle className="mr-1" /> Added</Badge>;
-                                        case 'Removed': return <Badge variant="destructive"><XCircle className="mr-1"/> Removed</Badge>;
+                                        case 'In Sheet 2 Only': return <Badge className="bg-green-500 hover:bg-green-600"><CheckCircle className="mr-1" /> In Sheet 2 Only</Badge>;
+                                        case 'In Sheet 1 Only': return <Badge variant="destructive"><XCircle className="mr-1"/> In Sheet 1 Only</Badge>;
                                         case 'Changed': return <Badge variant="secondary" className="bg-amber-400 text-black hover:bg-amber-500"><ArrowRightLeft className="mr-1" /> Changed</Badge>;
-                                        case 'Matched': return <Badge variant="outline"><CircleDot className="mr-1"/> Unchanged</Badge>;
+                                        case 'Unchanged': return <Badge variant="outline"><CircleDot className="mr-1"/> Unchanged</Badge>;
                                     }
                                 }
                                 
@@ -424,10 +424,10 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
                                         const v2 = val2?.[col] ?? '';
                                         const isDifferent = item.status === 'Changed' && String(v1) !== String(v2);
 
-                                        if(item.status === 'Removed') {
+                                        if(item.status === 'In Sheet 1 Only') {
                                            return <td key={`${col}-1`} className="p-2 border-l bg-red-500/10" colSpan={2}>{v1}</td>;
                                         }
-                                        if(item.status === 'Added') {
+                                        if(item.status === 'In Sheet 2 Only') {
                                             return <td key={`${col}-2`} className="p-2 border-l bg-green-500/10" colSpan={2}>{v2}</td>;
                                         }
 
@@ -451,3 +451,5 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     </div>
   );
 }
+
+    
