@@ -7,10 +7,12 @@ import type { ExcelFile, ExcelRow } from "./types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, GitCompareArrows, Download } from "lucide-react";
+import { Loader2, GitCompareArrows, Download, CheckCircle, XCircle, ArrowRightLeft, CircleDot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import DataTable from "./DataTable";
+import { cn } from "@/lib/utils";
+import { Badge } from "../ui/badge";
 
 interface ComparisonViewProps {
   files: ExcelFile[];
@@ -22,13 +24,19 @@ interface SheetIdentifier {
   name: string;
 }
 
+type ComparisonStatus = "Matched" | "Changed" | "Added" | "Removed";
+
 interface ComparisonResult {
-    keyColumn: string;
     comparison: {
-        comparisonStatus: "Matched" | "In Sheet 1 Only" | "In Sheet 2 Only";
-        data: Record<string, any>;
+        status: ComparisonStatus;
+        key: string | number;
+        data1: ExcelRow | null;
+        data2: ExcelRow | null;
     }[];
+    allColumns: string[];
 }
+
+type FilterStatus = "all" | ComparisonStatus;
 
 
 export default function ComparisonView({ files }: ComparisonViewProps) {
@@ -38,6 +46,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
   const [keyColumn2, setKeyColumn2] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<ComparisonResult | null>(null);
+  const [filter, setFilter] = useState<FilterStatus>('all');
   const { toast } = useToast();
 
   const sheetOptions = useMemo(() => files.flatMap((file, fileIndex) =>
@@ -62,6 +71,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
 
   useEffect(() => {
     setResult(null);
+    setFilter('all');
     setKeyColumn1(null);
     setKeyColumn2(null);
   }, [sheet1, sheet2]);
@@ -87,27 +97,31 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     const map1 = new Map(data1.map(row => [row[key1], row]));
     const map2 = new Map(data2.map(row => [row[key2], row]));
     const comparison: ComparisonResult['comparison'] = [];
+    
     const allKeys = new Set([...map1.keys(), ...map2.keys()]);
+    const allColumns = new Set([...sheet1Columns, ...sheet2Columns]);
 
     allKeys.forEach(key => {
       const row1 = map1.get(key);
       const row2 = map2.get(key);
 
       if (row1 && row2) {
-        // Matched
-        const mergedData = { ...row1, ...row2 };
-        delete mergedData[key2]; // Avoid duplicate key column
-        comparison.push({ comparisonStatus: "Matched", data: mergedData });
+        let isChanged = false;
+        for (const col of allColumns) {
+            if (String(row1[col] ?? '') !== String(row2[col] ?? '')) {
+                isChanged = true;
+                break;
+            }
+        }
+        comparison.push({ status: isChanged ? "Changed" : "Matched", key, data1: row1, data2: row2 });
       } else if (row1) {
-        // In Sheet 1 Only
-        comparison.push({ comparisonStatus: "In Sheet 1 Only", data: row1 });
+        comparison.push({ status: "Removed", key, data1: row1, data2: null });
       } else if (row2) {
-        // In Sheet 2 Only
-        comparison.push({ comparisonStatus: "In Sheet 2 Only", data: row2 });
+        comparison.push({ status: "Added", key, data1: null, data2: row2 });
       }
     });
 
-    return { keyColumn: key1, comparison };
+    return { comparison, allColumns: Array.from(allColumns) };
   };
 
 
@@ -116,15 +130,15 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
       toast({ variant: "destructive", title: "Please select two sheets and a key column for each." });
       return;
     }
-    if (sheet1.name === sheet2.name) {
-        toast({ variant: "destructive", title: "Please select two different sheets." });
+    if (sheet1.name === sheet2.name && keyColumn1 === keyColumn2) {
+        toast({ variant: "destructive", title: "Please select two different sheets or different key columns." });
         return;
     }
 
     setIsLoading(true);
     setResult(null);
+    setFilter('all');
 
-    // Use a short timeout to allow the loading spinner to render before the blocking comparison logic runs
     setTimeout(() => {
         try {
             const data1 = files[sheet1.fileIndex].sheets[sheet1.sheetIndex].data;
@@ -139,33 +153,22 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
         } finally {
             setIsLoading(false);
         }
-    }, 50); // 50ms delay
+    }, 50);
   };
-  
-  const handleResultUpdate = (newData: ExcelRow[]) => {
-    if(!result) return;
-    
-    const updatedComparisonData = result.comparison.map((item, index) => {
-        if(newData[index]) {
-            const { comparisonStatus, ...rest } = newData[index];
-            return {
-                ...item,
-                data: rest
-            }
-        }
-        return item;
-    });
-
-    setResult({ ...result, comparison: updatedComparisonData });
-  }
 
   const exportToExcel = () => {
     if (!result || !result.comparison) return;
 
-    const dataToExport = result.comparison.map(item => ({
-      'Status': item.comparisonStatus,
-      ...item.data
-    }));
+    const dataToExport = result.comparison.map((item, index) => {
+        const base = { 'S.No.': index + 1, 'Key': item.key, 'Status': item.status };
+        result.allColumns.forEach(col => {
+            if (col !== keyColumn1 && col !== keyColumn2) {
+                base[`${col} (Sheet 1)`] = item.data1?.[col] ?? '';
+                base[`${col} (Sheet 2)`] = item.data2?.[col] ?? '';
+            }
+        });
+        return base;
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
@@ -173,18 +176,22 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     XLSX.writeFile(workbook, `Comparison-Result.xlsx`);
   }
 
-  const resultSheet = useMemo(() => {
+  const resultStats = useMemo(() => {
     if (!result) return null;
     return {
-      name: "Comparison Result",
-      data: result.comparison.map(row => {
-        return {
-          comparisonStatus: row.comparisonStatus,
-          ...row.data
-        };
-      })
-    };
+        all: result.comparison.length,
+        Matched: result.comparison.filter(i => i.status === 'Matched').length,
+        Changed: result.comparison.filter(i => i.status === 'Changed').length,
+        Added: result.comparison.filter(i => i.status === 'Added').length,
+        Removed: result.comparison.filter(i => i.status === 'Removed').length,
+    }
   }, [result]);
+
+  const filteredResult = useMemo(() => {
+    if (!result) return null;
+    if (filter === 'all') return result.comparison;
+    return result.comparison.filter(item => item.status === filter);
+  }, [result, filter]);
 
 
   if (files.length < 1) {
@@ -200,7 +207,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     )
   }
 
-  if (sheetOptions.length < 2) {
+  if (sheetOptions.length < 2 && !(files.length === 1 && files[0].sheets.length > 1)) {
     return (
         <Card className="w-full max-w-lg text-center shadow-lg border-dashed border-2 mx-auto mt-10">
            <CardHeader>
@@ -225,7 +232,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-                <label className="text-sm font-medium">Sheet 1</label>
+                <label className="text-sm font-medium">Sheet 1 (Reference)</label>
                 <Select onValueChange={(value) => setSheet1(JSON.parse(value))}>
                     <SelectTrigger>
                         <SelectValue placeholder="Select Sheet 1" />
@@ -241,7 +248,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
                 </Select>
             </div>
             <div className="space-y-2">
-                <label className="text-sm font-medium">Sheet 2</label>
+                <label className="text-sm font-medium">Sheet 2 (To Compare)</label>
                 <Select onValueChange={(value) => setSheet2(JSON.parse(value))}>
                 <SelectTrigger>
                     <SelectValue placeholder="Select Sheet 2" />
@@ -302,7 +309,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
                 ) : (
                     <>
                         <GitCompareArrows className="mr-2 h-4 w-4" />
-                        Compare Sheets
+                        Run Comparison
                     </>
                 )}
             </Button>
@@ -319,14 +326,14 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
         </Card>
       )}
 
-      {result && resultSheet && (
+      {result && filteredResult && resultStats && (
          <Card className="shadow-lg">
             <CardHeader>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
                         <CardTitle>Comparison Result</CardTitle>
                         <CardDescription>
-                        The comparison results are shown below. You can filter, sort, and edit the data directly.
+                            Showing {filteredResult.length} of {result.comparison.length} total rows.
                         </CardDescription>
                     </div>
                      <Button onClick={exportToExcel} variant="outline">
@@ -334,27 +341,82 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
                         Export Result
                     </Button>
                 </div>
+                <div className="flex items-center gap-2 pt-4 flex-wrap">
+                    <Button variant={filter === 'all' ? 'default' : 'outline'} onClick={() => setFilter('all')}>All ({resultStats.all})</Button>
+                    <Button variant={filter === 'Changed' ? 'default' : 'outline'} onClick={() => setFilter('Changed')}>Changed ({resultStats.Changed})</Button>
+                    <Button variant={filter === 'Added' ? 'default' : 'outline'} onClick={() => setFilter('Added')}>Added ({resultStats.Added})</Button>
+                    <Button variant={filter === 'Removed' ? 'default' : 'outline'} onClick={() => setFilter('Removed')}>Removed ({resultStats.Removed})</Button>
+                    <Button variant={filter === 'Matched' ? 'default' : 'outline'} onClick={() => setFilter('Matched')}>Unchanged ({resultStats.Matched})</Button>
+                </div>
             </CardHeader>
             <CardContent>
-                <Alert className="mb-6">
-                    <GitCompareArrows className="h-4 w-4" />
-                    <AlertTitle>Comparison Keys</AlertTitle>
-                    <AlertDescription>
-                        <p>
-                            Comparison based on:
-                        </p>
-                        <ul className="list-disc pl-5 mt-1">
-                            <li>Sheet 1 (<span className="font-semibold">{sheet1?.name}</span>) using column: <span className="font-bold text-primary">{keyColumn1}</span></li>
-                            <li>Sheet 2 (<span className="font-semibold">{sheet2?.name}</span>) using column: <span className="font-bold text-primary">{keyColumn2}</span></li>
-                        </ul>
-                    </AlertDescription>
-                </Alert>
-                <DataTable
-                    key={sheet1?.name + sheet2?.name}
-                    sheet={resultSheet}
-                    onUpdate={handleResultUpdate}
-                    isComparisonResult={true}
-                />
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="border-b">
+                                <th className="p-2 text-left font-semibold sticky left-0 bg-card z-10 w-16">S.No.</th>
+                                <th className="p-2 text-left font-semibold sticky left-16 bg-card z-10">Key: {keyColumn1}</th>
+                                <th className="p-2 text-left font-semibold sticky left-48 bg-card z-10">Status</th>
+                                {result.allColumns.filter(c => c !== keyColumn1 && c !== keyColumn2).map(col => (
+                                    <th key={col} className="p-2 text-center font-semibold border-l" colSpan={2}>{col}</th>
+                                ))}
+                            </tr>
+                            <tr className="border-b bg-muted/50">
+                                <th className="p-2 text-left font-semibold sticky left-0 bg-muted/50 z-10"></th>
+                                <th className="p-2 text-left font-semibold sticky left-16 bg-muted/50 z-10"></th>
+                                <th className="p-2 text-left font-semibold sticky left-48 bg-muted/50 z-10"></th>
+                                {result.allColumns.filter(c => c !== keyColumn1 && c !== keyColumn2).map(col => (
+                                    <React.Fragment key={col}>
+                                        <th className="p-2 text-center font-medium text-muted-foreground border-l w-48">Sheet 1 Value</th>
+                                        <th className="p-2 text-center font-medium text-muted-foreground border-l w-48">Sheet 2 Value</th>
+                                    </React.Fragment>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredResult.map((item, index) => {
+                                const val1 = item.data1;
+                                const val2 = item.data2;
+
+                                const getStatusBadge = (status: ComparisonStatus) => {
+                                    switch(status) {
+                                        case 'Added': return <Badge className="bg-green-500 hover:bg-green-600"><CheckCircle className="mr-1" /> Added</Badge>;
+                                        case 'Removed': return <Badge variant="destructive"><XCircle className="mr-1"/> Removed</Badge>;
+                                        case 'Changed': return <Badge variant="secondary" className="bg-amber-400 text-black hover:bg-amber-500"><ArrowRightLeft className="mr-1" /> Changed</Badge>;
+                                        case 'Matched': return <Badge variant="outline"><CircleDot className="mr-1"/> Unchanged</Badge>;
+                                    }
+                                }
+                                
+                                return (
+                                <tr key={item.key} className="border-b hover:bg-muted/50">
+                                    <td className="p-2 sticky left-0 bg-card z-10">{index + 1}</td>
+                                    <td className="p-2 sticky left-16 bg-card z-10 font-medium">{String(item.key)}</td>
+                                    <td className="p-2 sticky left-48 bg-card z-10">{getStatusBadge(item.status)}</td>
+                                    {result.allColumns.filter(c => c !== keyColumn1 && c !== keyColumn2).map(col => {
+                                        const v1 = val1?.[col] ?? '';
+                                        const v2 = val2?.[col] ?? '';
+                                        const isDifferent = item.status === 'Changed' && String(v1) !== String(v2);
+
+                                        if(item.status === 'Removed') {
+                                           return <td key={`${col}-1`} className="p-2 border-l bg-red-500/10" colSpan={2}>{v1}</td>;
+                                        }
+                                        if(item.status === 'Added') {
+                                            return <td key={`${col}-2`} className="p-2 border-l bg-green-500/10" colSpan={2}>{v2}</td>;
+                                        }
+
+                                        return (
+                                            <React.Fragment key={col}>
+                                                <td className={cn("p-2 border-l", isDifferent && "bg-amber-500/10")}>{String(v1)}</td>
+                                                <td className={cn("p-2 border-l", isDifferent && "bg-amber-500/10 font-semibold text-amber-800")}>{String(v2)}</td>
+                                            </React.Fragment>
+                                        )
+                                    })}
+                                </tr>
+                            )})}
+                        </tbody>
+                    </table>
+                </div>
+                 {filteredResult.length === 0 && <div className="text-center p-8 text-muted-foreground">No data to display for the selected filter.</div>}
             </CardContent>
          </Card>
       )}
@@ -362,3 +424,5 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     </div>
   );
 }
+
+    

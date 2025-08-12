@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
@@ -8,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { SlidersHorizontal, ArrowUpDown, Plus, Trash2, Download, Calculator, X, BadgeCheck, BadgeX, BadgePlus } from "lucide-react";
+import { SlidersHorizontal, ArrowUpDown, Plus, Trash2, Download, Calculator, X, BadgeCheck, BadgePlus, CircleDot, ArrowRightLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -177,11 +178,13 @@ export default function DataTable({ sheet, onUpdate, isComparisonResult = false 
   const renderStatusBadge = (status: string) => {
     switch (status) {
       case 'Matched':
-        return <Badge variant="default" className="bg-green-500 hover:bg-green-600"><BadgeCheck className="mr-1 h-4 w-4" /> Matched</Badge>;
-      case 'In Sheet 1 Only':
-        return <Badge variant="secondary"><BadgeX className="mr-1 h-4 w-4" /> In Sheet 1 Only</Badge>;
-      case 'In Sheet 2 Only':
-        return <Badge variant="outline"><BadgePlus className="mr-1 h-4 w-4" /> In Sheet 2 Only</Badge>;
+        return <Badge variant="outline"><CircleDot className="mr-1 h-4 w-4"/> Unchanged</Badge>;
+      case 'Changed':
+        return <Badge variant="secondary" className="bg-amber-400 text-black hover:bg-amber-500"><ArrowRightLeft className="mr-1 h-4 w-4"/> Changed</Badge>;
+      case 'Removed':
+        return <Badge variant="destructive"> In Sheet 1 Only</Badge>;
+      case 'Added':
+        return <Badge className="bg-green-500 hover:bg-green-600"> In Sheet 2 Only</Badge>;
       default:
         return status;
     }
@@ -332,3 +335,5 @@ export default function DataTable({ sheet, onUpdate, isComparisonResult = false 
     </div>
   );
 }
+
+    
