@@ -157,11 +157,9 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     return {
       name: "Comparison Result",
       data: result.comparison.map(row => {
-        // The data from the AI is a JSON string, so we must parse it.
-        const parsedData = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
         return {
           comparisonStatus: row.comparisonStatus,
-          ...parsedData
+          ...row.data // Data is now pre-parsed from the flow.
         };
       })
     };
@@ -319,9 +317,15 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
             <CardContent>
                 <Alert className="mb-6">
                     <GitCompareArrows className="h-4 w-4" />
-                    <AlertTitle>Comparison Key</AlertTitle>
+                    <AlertTitle>Comparison Keys</AlertTitle>
                     <AlertDescription>
-                        The AI used the column <span className="font-bold text-primary">{result.keyColumn}</span> for the comparison.
+                        <p>
+                            Comparison based on:
+                        </p>
+                        <ul className="list-disc pl-5 mt-1">
+                            <li>Sheet 1 (<span className="font-semibold">{sheet1?.name}</span>) using column: <span className="font-bold text-primary">{keyColumn1}</span></li>
+                            <li>Sheet 2 (<span className="font-semibold">{sheet2?.name}</span>) using column: <span className="font-bold text-primary">{keyColumn2}</span></li>
+                        </ul>
                     </AlertDescription>
                 </Alert>
                 <DataTable
@@ -336,5 +340,6 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
 
     </div>
   );
+}
 
     

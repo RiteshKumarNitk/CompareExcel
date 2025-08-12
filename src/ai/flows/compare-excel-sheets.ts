@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -33,10 +34,10 @@ const ComparisonRowSchema = z.object({
   data: z.string().describe("A JSON string representing the merged data for the row.")
 });
 
-const CompareExcelSheetsOutputSchema = z.object({
-  keyColumn: z.string().describe('The name of the column used as the key for comparison.'),
-  comparison: z.array(ComparisonRowSchema).describe("An array of rows representing the comparison result. Each row has a status and the combined data from the sheets."),
+const AISchema = z.object({
+    comparison: z.array(ComparisonRowSchema).describe("An array of rows representing the comparison result. Each row has a status and the combined data from the sheets."),
 });
+
 
 // The final output type we'll use in the application, with `data` parsed.
 export type CompareExcelSheetsOutput = {
@@ -77,7 +78,7 @@ export async function compareExcelSheets(input: CompareExcelSheetsInput): Promis
 const prompt = ai.definePrompt({
   name: 'compareExcelSheetsPrompt',
   input: {schema: CompareExcelSheetsInputSchema},
-  // REMOVED output schema here to prevent validation failure before our code can handle it.
+  output: {schema: AISchema},
   prompt: `You are an expert data analyst. Your task is to compare two CSV datasets based on user-provided key columns.
 
 **Instructions:**
@@ -110,17 +111,19 @@ const compareExcelSheetsFlow = ai.defineFlow(
   {
     name: 'compareExcelSheetsFlow',
     inputSchema: CompareExcelSheetsInputSchema,
-    outputSchema: CompareExcelSheetsOutputSchema,
+    outputSchema: z.object({ // We define the final, correct output schema here for the flow itself.
+        keyColumn: z.string(),
+        comparison: z.array(ComparisonRowSchema)
+    }),
   },
   async (input) => {
-    // Call the prompt without expecting a strictly validated output.
     const response = await prompt(input);
-    const aiOutput = response.output as any; // Cast to any to handle unpredictable AI output
+    const aiOutput = response.output;
 
     // Manually construct the final, valid object.
     // This is the robust fix. We take whatever the AI gives us for `comparison`
     // and build the valid object ourselves, guaranteeing `keyColumn` exists.
-    const finalResult: z.infer<typeof CompareExcelSheetsOutputSchema> = {
+    const finalResult = {
       keyColumn: input.keyColumn1, // Inject the key column from the user's input.
       comparison: aiOutput?.comparison || [], // Use the AI's comparison array, or an empty one if it fails.
     };
@@ -128,3 +131,5 @@ const compareExcelSheetsFlow = ai.defineFlow(
     return finalResult;
   }
 );
+
+    
