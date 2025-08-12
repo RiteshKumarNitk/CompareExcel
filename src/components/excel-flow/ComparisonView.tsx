@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -61,6 +62,20 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
     setKeyColumn1(null);
     setKeyColumn2(null);
   }, [sheet1, sheet2]);
+  
+  // Reset key columns if the underlying columns change for a selected sheet
+  useEffect(() => {
+    if (keyColumn1 && !sheet1Columns.includes(keyColumn1)) {
+        setKeyColumn1(null);
+    }
+  }, [keyColumn1, sheet1Columns]);
+
+  useEffect(() => {
+    if (keyColumn2 && !sheet2Columns.includes(keyColumn2)) {
+        setKeyColumn2(null);
+    }
+  }, [keyColumn2, sheet2Columns]);
+
 
   const handleCompare = async () => {
     if (!sheet1 || !sheet2 || !keyColumn1 || !keyColumn2) {
@@ -151,7 +166,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
 
   if (files.length < 1) {
     return (
-        <Card className="text-center shadow-lg">
+        <Card className="w-full max-w-lg text-center shadow-lg border-dashed border-2 mx-auto mt-10">
            <CardHeader>
                <CardTitle>No Files Uploaded</CardTitle>
            </CardHeader>
@@ -164,7 +179,7 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
 
   if (sheetOptions.length < 2) {
     return (
-        <Card className="text-center shadow-lg">
+        <Card className="w-full max-w-lg text-center shadow-lg border-dashed border-2 mx-auto mt-10">
            <CardHeader>
                <CardTitle>Not Enough Sheets</CardTitle>
            </CardHeader>
@@ -181,65 +196,77 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
         <CardHeader>
           <CardTitle>Compare Excel Sheets</CardTitle>
           <CardDescription>
-            Select two sheets and the key column for each to use for matching rows.
+            Select two sheets and the key column for each to use for matching rows. The AI will then analyze the differences.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Select onValueChange={(value) => setSheet1(JSON.parse(value))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Sheet 1" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Sheets</SelectLabel>
-                  {sheetOptions.map((opt, index) => (
-                    <SelectItem key={`${opt.name}-${index}-1`} value={JSON.stringify(opt)}>{opt.name}</SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <Select onValueChange={(value) => setSheet2(JSON.parse(value))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Sheet 2" />
-              </SelectTrigger>
-              <SelectContent>
-                 <SelectGroup>
-                  <SelectLabel>Sheets</SelectLabel>
-                  {sheetOptions.map((opt, index) => (
-                    <SelectItem key={`${opt.name}-${index}-2`} value={JSON.stringify(opt)}>{opt.name}</SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+                <label className="text-sm font-medium">Sheet 1</label>
+                <Select onValueChange={(value) => setSheet1(JSON.parse(value))}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select Sheet 1" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectGroup>
+                        <SelectLabel>Sheets</SelectLabel>
+                        {sheetOptions.map((opt, index) => (
+                            <SelectItem key={`${opt.name}-${index}-1`} value={JSON.stringify(opt)}>{opt.name}</SelectItem>
+                        ))}
+                        </SelectGroup>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-2">
+                <label className="text-sm font-medium">Sheet 2</label>
+                <Select onValueChange={(value) => setSheet2(JSON.parse(value))}>
+                <SelectTrigger>
+                    <SelectValue placeholder="Select Sheet 2" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectGroup>
+                    <SelectLabel>Sheets</SelectLabel>
+                    {sheetOptions.map((opt, index) => (
+                        <SelectItem key={`${opt.name}-${index}-2`} value={JSON.stringify(opt)}>{opt.name}</SelectItem>
+                    ))}
+                    </SelectGroup>
+                </SelectContent>
+                </Select>
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Select onValueChange={setKeyColumn1} disabled={!sheet1}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Key Column for Sheet 1" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Columns in {sheet1?.name}</SelectLabel>
-                  {sheet1Columns.map((col) => (
-                    <SelectItem key={`${col}-1`} value={col}>{col}</SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <Select onValueChange={setKeyColumn2} disabled={!sheet2}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Key Column for Sheet 2" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Columns in {sheet2?.name}</SelectLabel>
-                  {sheet2Columns.map((col) => (
-                    <SelectItem key={`${col}-2`} value={col}>{col}</SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+                <label className="text-sm font-medium">Key Column for Sheet 1</label>
+                <Select onValueChange={setKeyColumn1} disabled={!sheet1} value={keyColumn1 ?? ""}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select Key Column..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectGroup>
+                        <SelectLabel>Columns in {sheet1?.name}</SelectLabel>
+                        {sheet1Columns.map((col) => (
+                            <SelectItem key={`${col}-1`} value={col}>{col}</SelectItem>
+                        ))}
+                        </SelectGroup>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-2">
+                <label className="text-sm font-medium">Key Column for Sheet 2</label>
+                <Select onValueChange={setKeyColumn2} disabled={!sheet2} value={keyColumn2 ?? ""}>
+                <SelectTrigger>
+                    <SelectValue placeholder="Select Key Column..." />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectGroup>
+                    <SelectLabel>Columns in {sheet2?.name}</SelectLabel>
+                    {sheet2Columns.map((col) => (
+                        <SelectItem key={`${col}-2`} value={col}>{col}</SelectItem>
+                    ))}
+                    </SelectGroup>
+                </SelectContent>
+                </Select>
+            </div>
           </div>
         </CardContent>
         <CardFooter>
@@ -305,4 +332,5 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
 
     </div>
   );
-}
+
+    
