@@ -153,14 +153,18 @@ export default function ComparisonView({ files }: ComparisonViewProps) {
   }
 
   const resultSheet = useMemo(() => {
-    if(!result) return null;
+    if (!result) return null;
     return {
-        name: "Comparison Result",
-        data: result.comparison.map(row => ({
-            comparisonStatus: row.comparisonStatus,
-            ...row.data
-        }))
-    }
+      name: "Comparison Result",
+      data: result.comparison.map(row => {
+        // The data from the AI is a JSON string, so we must parse it.
+        const parsedData = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+        return {
+          comparisonStatus: row.comparisonStatus,
+          ...parsedData
+        };
+      })
+    };
   }, [result]);
 
 

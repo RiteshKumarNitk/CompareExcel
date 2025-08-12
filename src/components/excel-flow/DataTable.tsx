@@ -30,7 +30,8 @@ export default function DataTable({ sheet, onUpdate, isComparisonResult = false 
   const { toast } = useToast();
 
   useEffect(() => {
-    const initialColumns = data.length > 0 ? Object.keys(data[0]) : [];
+    const initialData = sheet.data || [];
+    const initialColumns = initialData.length > 0 ? Object.keys(initialData[0]) : [];
     const orderedColumns = isComparisonResult 
         ? ['comparisonStatus', ...initialColumns.filter(c => c !== 'comparisonStatus')]
         : initialColumns;
@@ -39,11 +40,11 @@ export default function DataTable({ sheet, onUpdate, isComparisonResult = false 
     setVisibleColumns(orderedColumns.reduce((acc, col) => ({ ...acc, [col]: true }), {}));
     setFilters({});
     setSortConfig(null);
-  }, [sheet, data, isComparisonResult]);
+  }, [sheet, isComparisonResult]);
 
   // Update data state when sheet data prop changes
   useEffect(() => {
-      setData(sheet.data);
+      setData(sheet.data || []);
   }, [sheet.data]);
 
 
@@ -298,7 +299,7 @@ export default function DataTable({ sheet, onUpdate, isComparisonResult = false 
               {sortedData.map((row, rowIndex) => (
                   <TableRow key={rowIndex}>
                     <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => removeRow(rowIndex)}>
+                      <Button variant="ghost" size="icon" onClick={() => removeRow(rowIndex)} disabled={isComparisonResult}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </TableCell>
